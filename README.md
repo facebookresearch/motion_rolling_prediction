@@ -35,8 +35,23 @@ In extended reality (XR), generating full-body motion of the users is important 
 
 This code was tested on Ubuntu XX + Python XX + PyTorch XXX While other versions might work as well, we recommend using this conda environment to avoid any issues.
 
+1. Download the [human_body_prior](https://github.com/nghorbani/human_body_prior/tree/master/src) lib and [body_visualizer](https://github.com/nghorbani/body_visualizer/tree/master/src) lib and put them in this repo. The repo should look like
+```
+rolling_prediction_models
+├── body_visualizer
+├──── mesh/
+├──── tools/
+├──── ...
+├── human_body_prior/
+├──── body_model/
+├──── data/
+├──── ...
+├── dataset/
+├── evaluation/
+└── ...
+```
 
-1. Setup conda env:
+2. Setup conda env:
 ```shell
 conda env create -f environment.yml
 conda activate rpm

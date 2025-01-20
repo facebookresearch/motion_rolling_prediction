@@ -17,7 +17,6 @@ import time
 import torch
 
 from data_loaders.dataloader import TestDataset
-from deeplearning.projects.nimble_hoi.lib.renderers.pyopengl_bootstrap import bootstrap
 
 from diffusion import logger
 from diffusion.diffusion_model import RollingDiffusionModel
@@ -27,13 +26,16 @@ from evaluation.evaluation import EvaluatorWrapper
 from evaluation.generators import create_generator
 from evaluation.utils import BodyModelsWrapper
 from evaluation.visualization import VisualizerWrapper
-from fblearner.flow.util.visualization_utils import summary_writer
+#from fblearner.flow.util.visualization_utils import summary_writer
 from torch.optim import AdamW
 
 from tqdm import tqdm
 from utils import dist_util
 from utils.config import pathmgr
 from utils.constants import DataTypeGT, MotionLossType, RollingType
+
+summary_writer = None # TODO remove dependency
+bootstrap = None # TODO remove dependency
 
 layout = {
     "quartiles": {

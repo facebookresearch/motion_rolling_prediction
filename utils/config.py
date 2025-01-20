@@ -1,14 +1,11 @@
 import logging
 import os
 
-from iopath import PathManager
-from iopath.fb.manifold import ManifoldPathHandler
-
-pathmgr = PathManager()
-pathmgr.register_handler(ManifoldPathHandler())
 
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
+
+pathmgr = None # TODO remove this dependency on pathmgr
 
 
 SMPL_DATA_MANIFOLD_PATH = (
@@ -21,15 +18,9 @@ if not os.path.exists(SMPL_DATA_PATH):
     SMPL_DATA_PATH = SMPL_DATA_MANIFOLD_PATH
 
 
-SMPL_KINTREE_PATH = pathmgr.get_local_path(
-    os.path.join(SMPL_DATA_PATH, "kintree_table.pkl")
-)
-SMPL_MODEL_PATH = pathmgr.get_local_path(
-    os.path.join(SMPL_DATA_PATH, "SMPL_NEUTRAL.pkl")
-)
-JOINT_REGRESSOR_TRAIN_EXTRA = pathmgr.get_local_path(
-    os.path.join(SMPL_DATA_PATH, "J_regressor_extra.npy")
-)
+SMPL_KINTREE_PATH = os.path.join(SMPL_DATA_PATH, "kintree_table.pkl")
+SMPL_MODEL_PATH = os.path.join(SMPL_DATA_PATH, "SMPL_NEUTRAL.pkl")
+JOINT_REGRESSOR_TRAIN_EXTRA = os.path.join(SMPL_DATA_PATH, "J_regressor_extra.npy")
 
 ROT_CONVENTION_TO_ROT_NUMBER = {
     "legacy": 23,

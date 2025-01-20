@@ -15,7 +15,6 @@ from loguru import logger
 
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from utils.config import pathmgr
 from utils.constants import (
     ConditionMasker,
     DatasetType,
@@ -24,6 +23,7 @@ from utils.constants import (
     SMPLModelType,
 )
 
+pathmgr = None # TODO: replace all dependencies on pathmgr
 
 @dataclass
 class DatasetDataStruct:

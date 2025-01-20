@@ -6,7 +6,6 @@ import numpy as np
 import torch
 
 from data_loaders.dataloader import TestDataset
-from deeplearning.projects.nimble_hoi.lib.renderers.pyopengl_bootstrap import bootstrap
 from evaluation.evaluation import EvaluatorWrapper
 from evaluation.generators import create_generator
 
@@ -16,10 +15,11 @@ from evaluation.visualization import VisualizerWrapper
 
 from loguru import logger
 
-from utils.config import pathmgr
 from utils.model_util import load_diffusion_model
 from utils.parser_util import sample_args
 
+pathmgr = None # TODO: replace all dependencies on pathmgr
+bootstrap = None # TODO: remove dependency
 
 def make_args_retrocompatible(args):
     if args.rolling_context != -1:

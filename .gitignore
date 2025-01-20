@@ -4,3 +4,5 @@ human_body_prior
 pretrained_weights/
 prepare_data/
 GORP_DATASET/
+*.pyc
+__pycache__
