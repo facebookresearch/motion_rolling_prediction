@@ -1,7 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. All Rights Reserved
 import argparse
 import os
-import tempfile
 
 import numpy as np
 import torch
@@ -11,13 +10,27 @@ from human_body_prior.tools.rotation_tools import aa2matrot, local2global_pose
 from loguru import logger
 from tqdm import tqdm
 from utils import utils_transform
-from utils.config import pathmgr
 from utils.constants import SMPLGenderParam, SMPLModelType
+import sys
+
+
+def replace_slashes(path: str) -> str:
+    """
+    Replaces forward slashes with backslashes in a path if the system is Windows.
+    Args:
+        path (str): The path to modify.
+    Returns:
+        str: The modified path.
+    """
+    if sys.platform == 'win32':  # Check if the system is Windows
+        return path.replace('/', '\\')
+    else:
+        return path
 
 
 def from_smpl_to_input_features(
     smpl_pose_vec: torch.Tensor, pose_joints_world: torch.Tensor, kintree
-):
+) -> dict:
     """
     smpl_pose_vec: [num_frames, 66] -> pose of the body in SMPL format
     pose_joints: [num_frames, 22, 3] -> position of the joints in the world coordinate system
@@ -47,7 +60,8 @@ def from_smpl_to_input_features(
     rotation_velocity_global_6d = utils_transform.matrot2sixd(
         rotation_velocity_global_matrot.reshape(-1, 3, 3)
     ).reshape(rotation_velocity_global_matrot.shape[0], -1, 6)
-    input_rotation_velocity_global_6d = rotation_velocity_global_6d[:, [15, 20, 21], :]
+    input_rotation_velocity_global_6d = rotation_velocity_global_6d[:, [
+        15, 20, 21], :]
 
     num_frames = pose_joints_world.shape[0] - 1
     hmd_cond = torch.cat(
@@ -61,7 +75,8 @@ def from_smpl_to_input_features(
         dim=-1,
     )
 
-    position_head_world = pose_joints_world[1:, 15, :]  # world position of head
+    # world position of head
+    position_head_world = pose_joints_world[1:, 15, :]
     head_global_trans = torch.eye(4).repeat(num_frames, 1, 1)
     head_global_trans[:, :3, :3] = head_rotation_global_matrot
     head_global_trans[:, :3, 3] = position_head_world
@@ -80,15 +95,6 @@ def from_smpl_to_input_features(
 
 
 def main(args, device="cuda:0"):
-    if args.use_vip:
-        from iopath import PathManager
-        from iopath.fb.manifold import ManifoldPathHandler
-
-        vip_pathmgr = PathManager()
-        vip_pathmgr.register_handler(ManifoldPathHandler(use_vip=True))
-    else:
-        vip_pathmgr = pathmgr
-
     # We use male/female as specified in AMASS metadata for each sequence
     # It will be initalized after reading the first sequence (smplh or smplx)
     body_model = None
@@ -102,15 +108,15 @@ def main(args, device="cuda:0"):
             split_file = os.path.join(
                 args.splits_dir, dataroot_subset, phase + "_split.txt"
             )
-            if not pathmgr.exists(split_file):
+            if not os.path.exists(split_file):
                 logger.info(f"{split_file} does not exist, skipping...")
                 continue
 
             savedir = os.path.join(args.save_dir, dataroot_subset, phase)
-            pathmgr.mkdirs(savedir)
+            os.makedirs(savedir, exist_ok=True)
 
             with open(split_file, "r") as f:
-                filepaths = [line.strip() for line in f]
+                filepaths = [replace_slashes(line.strip()) for line in f]
 
             idx = 0
             pbar = tqdm(total=len(filepaths))
@@ -118,13 +124,19 @@ def main(args, device="cuda:0"):
                 filepath = filepaths[idx]
                 idx += 1
                 dst_fname = "{}.pt".format(idx)
-                manifold_path = os.path.join(savedir, dst_fname)
-                if pathmgr.exists(manifold_path):
+                save_path = os.path.join(savedir, dst_fname)
+                if os.path.exists(save_path):
                     pbar.update(1)
                     continue
 
+                sample_path = os.path.join(args.root_dir, filepath)
+                if not os.path.exists(sample_path):
+                    logger.warning(
+                        "File {} does not exist, skipping...".format(sample_path))
+                    continue
+
                 bdata = np.load(
-                    vip_pathmgr.get_local_path(os.path.join(args.root_dir, filepath)),
+                    sample_path,
                     allow_pickle=True,
                 )
 
@@ -133,7 +145,8 @@ def main(args, device="cuda:0"):
                 elif "mocap_frame_rate" in bdata:
                     fps = bdata["mocap_frame_rate"]
                 else:
-                    logger.info("No mocap_framerate found in {}".format(filepath))
+                    logger.info(
+                        "No mocap_framerate found in {}".format(filepath))
                     continue
 
                 # type of body model
@@ -153,7 +166,8 @@ def main(args, device="cuda:0"):
                     body_model_type = SMPLModelType.SMPLH  # by default
 
                 if body_model is None:
-                    logger.info("Initializing body model: {}".format(body_model_type))
+                    logger.info(
+                        "Initializing body model: {}".format(body_model_type))
                     body_model = BodyModelsWrapper(args.support_dir)
 
                 num_frames = bdata["trans"].shape[0]
@@ -181,7 +195,8 @@ def main(args, device="cuda:0"):
                 bdata_poses = bdata["poses"][downsamp_inds, ...]
                 bdata_trans = bdata["trans"][downsamp_inds, ...]
                 smpl_gender = (
-                    "neutral" if args.use_neutral_shape else str(bdata["gender"])
+                    "neutral" if args.use_neutral_shape else str(
+                        bdata["gender"])
                 )
 
                 body_parms = {
@@ -223,12 +238,7 @@ def main(args, device="cuda:0"):
                 data["filepath"] = filepath
                 data["surface_model_type"] = body_model_type
 
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    tmp_local_path = os.path.join(tmpdirname, dst_fname)
-                    torch.save(data, tmp_local_path)
-                    pathmgr.copy(
-                        src_path=tmp_local_path, dst_path=manifold_path, overwrite=True
-                    )
+                torch.save(data, save_path)
                 pbar.update(1)
 
 
@@ -256,11 +266,6 @@ def run():
     )
     parser.add_argument(
         "--root_dir", type=str, default=None, help="=dir where you put your AMASS data"
-    )
-    parser.add_argument(
-        "--use_vip",
-        action="store_true",
-        help="If True, it will use the --vip argument when accessing the Manifold bucket.",
     )
     parser.add_argument(
         "--use_neutral_shape",

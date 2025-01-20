@@ -10,7 +10,6 @@ from loguru import logger
 
 from utils import utils_transform
 
-from utils.config import pathmgr
 from utils.constants import DatasetType, SMPLGenderParam, SMPLModelType
 
 DATASETS_FPS = {
@@ -36,19 +35,13 @@ class BodyModel(torch.nn.Module):
     ):
         super().__init__()
         smpl_gender = smpl_gender.value.lower()
-        bm_fname = pathmgr.get_local_path(
-            os.path.join(
-                support_dir,
-                "{}/{}/model.npz".format(model_type.lower(), smpl_gender.lower()),
+        bm_fname = os.path.join(
+                support_dir, model_type.lower(), smpl_gender.lower(),
+                "model.npz",
             )
-        )
         num_betas = 16  # number of body parameters
         if model_type == SMPLModelType.SMPLH:
-            dmpl_fname = pathmgr.get_local_path(
-                os.path.join(
-                    support_dir, "dmpls/{}/model.npz".format(smpl_gender.lower())
-                )
-            )
+            dmpl_fname = os.path.join(support_dir, "dmpls", smpl_gender.lower(), "model.npz")
             num_dmpls = 8  # number of DMPL parameters
         else:
             dmpl_fname = None

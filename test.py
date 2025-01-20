@@ -18,8 +18,9 @@ from loguru import logger
 from utils.model_util import load_diffusion_model
 from utils.parser_util import sample_args
 
-pathmgr = None # TODO: replace all dependencies on pathmgr
-bootstrap = None # TODO: remove dependency
+pathmgr = None  # TODO: replace all dependencies on pathmgr
+bootstrap = None  # TODO: remove dependency
+
 
 def make_args_retrocompatible(args):
     if args.rolling_context != -1:
@@ -61,11 +62,13 @@ def main():
     exp_name = args.model_path.split("/")[-2]
     checkpoint_name = args.model_path.split("/")[-1].split(".")[0]
     subfolder_name = (
-        checkpoint_name[6:] if checkpoint_name.startswith("model") else checkpoint_name
+        checkpoint_name[6:] if checkpoint_name.startswith(
+            "model") else checkpoint_name
     )
     body_model = BodyModelsWrapper(args.support_dir)
 
-    generator = create_generator(args, model, diffusion, dataset, device, body_model)
+    generator = create_generator(
+        args, model, diffusion, dataset, device, body_model)
     suffix = generator.get_folder_suffix()
     subfolder_name += suffix
     name_results_folder = "results"
@@ -82,7 +85,8 @@ def main():
 
     if args.vis or args.vis_gt:
         bootstrap(platform="egl")
-        visualizer = VisualizerWrapper(args, generator, dataset, body_model, device)
+        visualizer = VisualizerWrapper(
+            args, generator, dataset, body_model, device)
         if args.vis:
             logger.info("Visualizing the results...")
             # visualizer.visualize_all(output_dir)

@@ -2,7 +2,7 @@ body_visualizer
 human_body_prior
 *_fb.py
 pretrained_weights/
-prepare_data/
 GORP_DATASET/
 *.pyc
 __pycache__
+checkpoints

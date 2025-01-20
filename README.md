@@ -12,7 +12,7 @@
 
 From headset + controllers (reliable)             |  From headset + hand-tracking (unreliable)
 :-------------------------:|:-------------------------:
-![](assets/teaser_MC.gif)  |  ![](assets/teaser_HT.gif)
+![](assets/teaser_MC.png)  |  ![](assets/teaser_HT.png)
 
 
 ## 🔎 About
