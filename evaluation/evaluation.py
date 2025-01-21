@@ -21,7 +21,6 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Sampler
 from tqdm import tqdm
 
-from utils.config import pathmgr
 from utils.constants import DataTypeGT, ModelOutputType, SMPLGenderParam, SMPLModelType
 from utils.metrics import (
     AccumulateArray,
@@ -37,6 +36,7 @@ from utils.metrics import (
     remove_frames_to_gaps,
 )
 
+from pathlib import Path
 
 def padding_collate(batch):
     """
@@ -352,20 +352,11 @@ class EvaluatorWrapper:
 
         return summary_log, fine_grained_df, arr_based_metrics
 
-    def store_all_results(self, df: pd.DataFrame, csv_path: str):
-        # save to temporary file
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            tmp_path = os.path.join(tmpdirname, f"results_{self.dataset_name}.csv")
-            df.to_csv(tmp_path, index=False)
-            # copy to manifold
-            pathmgr.copy(
-                src_path=tmp_path,
-                dst_path=csv_path,
-                overwrite=True,
-            )
+    def store_all_results(self, df: pd.DataFrame, csv_path: Path):
+        df.to_csv(csv_path, index=False)
         logger.info(f"Results successfully stored in a csv file: {csv_path=}")
 
-    def store_plots(self, metrics: dict, plot_dir: str):
+    def store_plots(self, metrics: dict, plot_dir: Path):
         if len(metrics.keys()) == 0:
             return
 
@@ -391,33 +382,16 @@ class EvaluatorWrapper:
                 abs_max = max(max(y_values), abs_max)
                 plt.ylim([0, 1.1 * abs_max])
                 # store array to npz
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    filename = "arr_" + metric_name + ".npz"
-                    tmp_path = os.path.join(tmpdirname, filename)
-                    np.savez(tmp_path, values=metrics[metric_name])
-                    # copy to manifold
-                    pathmgr.copy(
-                        src_path=tmp_path,
-                        dst_path=os.path.join(plot_dir, filename),
-                        overwrite=True,
-                    )
+                filename = "arr_" + metric_name + ".npz"
+                np.savez(plot_dir / filename, values=metrics[metric_name])
             plt.legend()
             plt.xlabel("Frame")
             plt.ylabel("Value")
 
-            # save to temporary file
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                tmp_path = os.path.join(tmpdirname, plot_cfg.filename + ".png")
-                tgt_path = os.path.join(plot_dir, plot_cfg.filename + ".png")
-                plt.savefig(tmp_path)
-                # copy to manifold
-                pathmgr.copy(
-                    src_path=tmp_path,
-                    dst_path=tgt_path,
-                    overwrite=True,
-                )
-                plt.close()
-                logger.info(f"'{title}' plot saved in {tgt_path}")
+            tgt_path = plot_dir / (plot_cfg.filename + ".png")
+            plt.savefig(tgt_path)
+            plt.close()
+            logger.info(f"'{title}' plot saved in {tgt_path}")
 
     def print_results(self, log):
         # print the value for all the metrics

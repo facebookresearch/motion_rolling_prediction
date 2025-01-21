@@ -23,7 +23,6 @@ from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 from utils import utils_transform
 
-from utils.config import pathmgr
 from utils.constants import (
     DatasetType,
     DataTypeGT,
@@ -32,6 +31,8 @@ from utils.constants import (
     SMPLGenderParam,
     SMPLModelType,
 )
+
+from pathlib import Path
 
 
 VIS_SAMPLES_SUBSET = {
@@ -202,28 +203,23 @@ class VisualizerWrapper:
 
         # lazy import because we need other dependencies first (bootstrap)
         from utils import utils_visualize
-
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            temp_video_path = os.path.join(tmpdirname, save_filename + ".mp4")
-            stored_paths = utils_visualize.save_animation(
-                body_pose=body_pose,
-                savepath=temp_video_path,
-                bm=body_model.body_model,
-                fps=fps,
-                resolution=(800, 800),
-                marker_points=marker_points,
-                marker_colors=marker_colors,
-                marker_rot=marker_rot,
-                show_rot_axes=True,
-                show_origin_axes=False,
-                export_meshes=export_results,
-            )
-            for origin_path in stored_paths:
-                dst_path = os.path.join(output_dir, os.path.basename(origin_path))
-                pathmgr.copy(src_path=origin_path, dst_path=dst_path, overwrite=True)
+        dst_path = output_dir / save_filename + ".mp4"
+        utils_visualize.save_animation(
+            body_pose=body_pose,
+            savepath=dst_path,
+            bm=body_model.body_model,
+            fps=fps,
+            resolution=(800, 800),
+            marker_points=marker_points,
+            marker_colors=marker_colors,
+            marker_rot=marker_rot,
+            show_rot_axes=True,
+            show_origin_axes=False,
+            export_meshes=export_results,
+        )
 
     def visualize_animation(
-        self, all_info: dict, output_dir: str, filename: str, vis_anim: RollingVisType
+        self, all_info: dict, output_dir: Path, filename: str, vis_anim: RollingVisType
     ):
         if vis_anim == RollingVisType.NONE:
             return
@@ -239,7 +235,7 @@ class VisualizerWrapper:
     def visualize_single(
         self,
         sample_idx: int,
-        output_dir: str,
+        output_dir: Path,
         overwrite: bool = False,
         vis_anim: RollingVisType = RollingVisType.NONE,
         num_rep: int = 1,
@@ -254,9 +250,9 @@ class VisualizerWrapper:
         gt_gender = gt_dict[DataTypeGT.SMPL_GENDER]
         smpl_model = gt_dict[DataTypeGT.SMPL_MODEL_TYPE]
 
-        filename = f"{filename}_rep{num_rep:02d}"
-        store_path = os.path.join(output_dir, filename + ".mp4")
-        if not overwrite and pathmgr.exists(store_path):
+        filename = f"{filename}_rep{num_rep:02d}.mp4"
+        store_path = output_dir / filename
+        if not overwrite and store_path.exists():
             logger.info(f"Visualization already exists for {filename}. Skipping...")
             return
 
@@ -357,7 +353,7 @@ class VisualizerWrapper:
     def export_predictions_at_all_timesteps(
         self,
         filename: str,
-        output_dir: str,
+        output_dir: Path,
         predictions: th.Tensor,
         head_motion: th.Tensor,
         gender: SMPLGenderParam,
@@ -367,7 +363,7 @@ class VisualizerWrapper:
         """
         Exports the predictions + tracking signal at all timesteps to a file. Also exports a settings file with info about the sequence.
         - filename: str
-        - output_dir: str
+        - output_dir: Path
         - predictions: th.tensor of shape (seq_len, pred_length, pose_params)
         - head_motion: th.tensor of shape (seq_len, 4, 4) including the orientation and the translation of the head
         - gender: SMPLGenderParam
@@ -412,30 +408,21 @@ class VisualizerWrapper:
             json_dict[f"{i:06d}"] = frame_dict
         # store json
         save_filename = filename.split(".")[0].replace("/", "-")
-        # save to temporary file
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            tmp_path = os.path.join(tmpdirname, "predictions.json")
-            with open(tmp_path, "w") as f:
-                json.dump(json_dict, f, indent=4, cls=CustomJSONEncoder)
-            # copy to manifold
-            tgt_path = os.path.join(output_dir, save_filename, "predictions.json")
-            pathmgr.copy(
-                src_path=tmp_path,
-                dst_path=tgt_path,
-                overwrite=True,
-            )
+        tgt_path = output_dir / save_filename / "predictions.json"
+        with open(tgt_path, "w") as f:
+            json.dump(json_dict, f, indent=4, cls=CustomJSONEncoder)
 
     def export_skeleton_at_all_timesteps(
         self,
         filename: str,
-        output_dir: str,
+        output_dir: Path,
         pr_skeleton: th.Tensor,
         kin_tree: th.Tensor,
     ):
         """
         Exports the predictions + tracking signal at all timesteps to a file. Also exports a settings file with info about the sequence.
         - filename: str
-        - output_dir: str
+        - output_dir: Path
         - pr_body_skeleton: th.tensor of shape (seq_len, 22, 3) containing the predicted skeleton
         """
         # ==================== export predicted joints positions at each timestep ====================
@@ -450,30 +437,21 @@ class VisualizerWrapper:
 
         # store json
         save_filename = filename.split(".")[0].replace("/", "-")
-        # save to temporary file
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            tmp_path = os.path.join(tmpdirname, "skeleton.json")
-            with open(tmp_path, "w") as f:
-                json.dump(json_dict, f, indent=4, cls=CustomJSONEncoder)
-            # copy to manifold
-            tgt_path = os.path.join(output_dir, save_filename, "skeleton.json")
-            pathmgr.copy(
-                src_path=tmp_path,
-                dst_path=tgt_path,
-                overwrite=True,
-            )
+        tgt_path = output_dir / save_filename / "skeleton.json"
+        with open(tgt_path, "w") as f:
+            json.dump(json_dict, f, indent=4, cls=CustomJSONEncoder)
 
     def export_tracking_and_settings_at_all_timesteps(
         self,
         filename: str,
-        output_dir: str,
+        output_dir: Path,
         sparse: th.Tensor,
         predictions: Optional[th.Tensor] = None,
     ):
         """
         Exports the tracking signal at all timesteps to a file. Also exports a settings file with info about the sequence.
         - filename: str
-        - output_dir: str
+        - output_dir: Path
         - sparse: th.tensor of shape (seq_len, 54) containing the sparse tracking signal
         - predictions: th.tensor of shape (seq_len, pred_length, pose_params)
         """
@@ -494,17 +472,9 @@ class VisualizerWrapper:
                     pos[i].cpu().numpy().tolist() + rot[i].cpu().numpy().tolist()
                 )  # (x, y, z) + (qw, qx, qy, qz)
         # store json
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            tmp_path = os.path.join(tmpdirname, "tracking.json")
-            with open(tmp_path, "w") as f:
-                json.dump(tracking_dict, f, indent=4, cls=CustomJSONEncoder)
-            # copy to manifold
-            tgt_path = os.path.join(output_dir, save_filename, "tracking.json")
-            pathmgr.copy(
-                src_path=tmp_path,
-                dst_path=tgt_path,
-                overwrite=True,
-            )
+        tgt_path = output_dir / save_filename / "tracking.json"
+        with open(tgt_path, "w") as f:
+            json.dump(tracking_dict, f, indent=4, cls=CustomJSONEncoder)
 
         # ==================== export settings ====================
         settings = {
@@ -515,22 +485,14 @@ class VisualizerWrapper:
             "num_features": 132,
         }
         # store json as settings
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            tmp_path = os.path.join(tmpdirname, "settings.json")
-            with open(tmp_path, "w") as f:
-                json.dump(settings, f, indent=4, cls=CustomJSONEncoder)
-            # copy to manifold
-            tgt_path = os.path.join(output_dir, save_filename, "settings.json")
-            pathmgr.copy(
-                src_path=tmp_path,
-                dst_path=tgt_path,
-                overwrite=True,
-            )
+        tgt_path = output_dir / save_filename / "settings.json"
+        with open(tgt_path, "w") as f:
+            json.dump(settings, f, indent=4, cls=CustomJSONEncoder)
 
     def visualize_single_GT(
         self,
         sample_idx: int,
-        output_dir: str,
+        output_dir: Path,
         overwrite: bool = False,
         export_results: bool = False,
     ):
@@ -541,8 +503,8 @@ class VisualizerWrapper:
         body_param = gt_dict[DataTypeGT.BODY_PARAMS]
         smpl_gender = gt_dict[DataTypeGT.SMPL_GENDER]
         smpl_model = gt_dict[DataTypeGT.SMPL_MODEL_TYPE]
-        store_path = os.path.join(output_dir, filename + "_gt.mp4")
-        if not overwrite and pathmgr.exists(store_path):
+        store_path = output_dir / filename + "_gt.mp4"
+        if not overwrite and store_path.exists():
             logger.info(f"Visualization already exists for {filename}. Skipping...")
             return
 
@@ -587,7 +549,7 @@ class VisualizerWrapper:
 
     def visualize_all(
         self,
-        output_dir: str,
+        output_dir: Path,
         samples: Optional[List[str]] = None,
         gt_data: bool = False,
         overwrite: bool = False,
@@ -626,7 +588,7 @@ class VisualizerWrapper:
 
     def visualize_by_names(
         self,
-        output_dir: str,
+        output_dir: Path,
         names: List[str],
         gt_data: bool = False,
         overwrite: bool = False,
@@ -652,7 +614,7 @@ class VisualizerWrapper:
 
     def visualize_subset(
         self,
-        output_dir: str,
+        output_dir: Path,
         gt_data: bool = False,
         overwrite: bool = False,
         vis_anim: RollingVisType = RollingVisType.NONE,
@@ -697,11 +659,9 @@ def plot_rolling_features(
     all_info, output_dir, filename, sample_idx=0, feats=(0, 4, 5, 20, 21)
 ):
     save_filename = filename.split(".")[0].replace("/", "-")
-    save_path = os.path.join(
-        output_dir,
-        save_filename + f"_rolling_vis_{'_'.join([str(f) for f in feats])}.mp4",
-    )
-    if pathmgr.exists(save_path):
+    save_filename_v2 = save_filename + f"_rolling_vis_{'_'.join([str(f) for f in feats])}.mp4"
+    save_path = output_dir / save_filename_v2
+    if save_path.exists():
         logger.info("{} already exists, skipping".format(save_path))
         return
 
@@ -749,26 +709,17 @@ def plot_rolling_features(
 
     # Create the animation
     anim = FuncAnimation(fig, animate, len(all_info["intermediates"]))
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        temp_video_path = os.path.join(tmpdirname, save_filename + "_rolling_vis.mp4")
-        # Store to video
-        anim.save(temp_video_path, writer="ffmpeg", fps=10)
-        pathmgr.copy(
-            src_path=temp_video_path,
-            dst_path=save_path,
-        )
+    # Store to video
+    anim.save(save_path, writer="ffmpeg", fps=10)
 
 
 def plot_rolling_features_change_rate(
     all_info, output_dir, filename, sample_idx=0, feats=(0, 4, 5, 20, 21)
 ):
     save_filename = filename.split(".")[0].replace("/", "-")
-    save_path = os.path.join(
-        output_dir,
-        save_filename + f"_rolling_vis_CR_{'_'.join([str(f) for f in feats])}.mp4",
-    )
-    if pathmgr.exists(save_path):
+    save_filename_v2 = save_filename + f"_rolling_vis_CR_{'_'.join([str(f) for f in feats])}.mp4"
+    save_path = output_dir / save_filename_v2
+    if save_path.exists():
         logger.info("{} already exists, skipping".format(save_path))
         return
 
@@ -834,15 +785,8 @@ def plot_rolling_features_change_rate(
 
     # Create the animation
     anim = FuncAnimation(fig, animate, len(all_info["intermediates"]))
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        temp_video_path = os.path.join(tmpdirname, save_filename + "_rolling_vis.mp4")
-        # Store to video
-        anim.save(temp_video_path, writer="ffmpeg", fps=10)
-        pathmgr.copy(
-            src_path=temp_video_path,
-            dst_path=save_path,
-        )
+    # Store to video
+    anim.save(save_path, writer="ffmpeg", fps=10)
 
 
 def plot_change_rate_distribution(
@@ -879,10 +823,4 @@ def plot_change_rate_distribution(
         cax.set_ylabel("Angle")
         cax.legend(loc="upper right")
 
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        temp_path = os.path.join(tmpdirname, save_filename + "_img.png")
-        plt.savefig(temp_path)
-        pathmgr.copy(
-            src_path=temp_path,
-            dst_path=save_path,
-        )
+    plt.savefig(save_path)

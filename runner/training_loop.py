@@ -26,16 +26,12 @@ from evaluation.evaluation import EvaluatorWrapper
 from evaluation.generators import create_generator
 from evaluation.utils import BodyModelsWrapper
 from evaluation.visualization import VisualizerWrapper
-#from fblearner.flow.util.visualization_utils import summary_writer
+from torch.utils.tensorboard import SummaryWriter
 from torch.optim import AdamW
 
 from tqdm import tqdm
 from utils import dist_util
-from utils.config import pathmgr
 from utils.constants import DataTypeGT, MotionLossType, RollingType
-
-summary_writer = None # TODO remove dependency
-bootstrap = None # TODO remove dependency
 
 layout = {
     "quartiles": {
@@ -43,7 +39,6 @@ layout = {
         MotionLossType.ROT_MSE: ["Multiline", [f"rot_mse_q{i}" for i in range(4)]],
     },
 }
-
 
 class TrainLoop:
     def __init__(self, args, model, diffusion, data, device="cuda"):
@@ -78,7 +73,7 @@ class TrainLoop:
             fp16_scale_growth=self.fp16_scale_growth,
         )
 
-        self.save_dir = os.path.join(args.results_dir, "checkpoints", args.exp_name)
+        self.save_dir = args.results_dir / "checkpoints" / args.exp_name
         self.overwrite = args.overwrite
 
         self.opt = AdamW(
@@ -106,8 +101,6 @@ class TrainLoop:
             self.test_visualizers = []
             self.test_suffixs = []
             body_model = BodyModelsWrapper(args.support_dir)
-            if self.vis_during_training:
-                bootstrap(platform="egl")
             to_evaluate_list = [
                 ("", None, args.input_motion_length),
                 ("_medHandsGaps", "medium_hands_idp", args.input_motion_length),
@@ -147,7 +140,7 @@ class TrainLoop:
                         self.device,
                         batch_size=min(args.batch_size, 64),
                     )
-                    pathmgr.mkdirs(os.path.join(self.save_dir, "eval" + suffix))
+                    (self.save_dir / ("eval" + suffix)).mkdir(parents=True, exist_ok=True)
                     self.test_evaluators.append(evaluator)
                 if self.vis_during_training:
                     visualizer = VisualizerWrapper(
@@ -157,7 +150,7 @@ class TrainLoop:
                         body_model,
                         self.device,
                     )
-                    pathmgr.mkdirs(os.path.join(self.save_dir, "vis" + suffix))
+                    (self.save_dir / ("vis" + suffix)).mkdir(parents=True, exist_ok=True)
                     self.test_visualizers.append(visualizer)
 
         self.use_ddp = False
@@ -165,10 +158,8 @@ class TrainLoop:
 
         # LOGGING STUFF
         logger.log(args)
-        train_log_dir = os.path.join(
-            args.results_dir, "logging", "tensorboard", args.exp_name, "train"
-        )
-        self.tb_writer = summary_writer(log_dir=train_log_dir)
+        train_log_dir = args.results_dir / "logging" / "tensorboard" / args.exp_name / "train"
+        self.tb_writer = SummaryWriter(log_dir=train_log_dir)
         self.tb_writer.add_custom_scalars(layout)
 
     def _load_and_sync_parameters(self):
@@ -180,27 +171,18 @@ class TrainLoop:
             logger.log(
                 f"loading model from checkpoint: {resume_checkpoint} at epoch {self.resume_epoch}..."
             )
-            assert pathmgr.exists(
-                resume_checkpoint
-            ), "resume_checkpoint does not exist."
+            assert resume_checkpoint.exists(), "resume_checkpoint does not exist."
             self.model.load_state_dict(
-                dist_util.load_state_dict(
-                    pathmgr.get_local_path(resume_checkpoint),
-                    map_location=dist_util.dev(),
-                )
+                dist_util.load_state_dict(resume_checkpoint, map_location=dist_util.dev())
             )
 
     def _load_optimizer_state(self):
         main_checkpoint = self.resume_checkpoint
-        opt_checkpoint = os.path.join(
-            os.path.dirname(main_checkpoint), f"opt{self.resume_step:09}.pt"
-        )
+        opt_checkpoint = main_checkpoint.parents[0] / f"opt{self.resume_step:09}.pt"
 
         logger.log(f"loading optimizer state from checkpoint: {opt_checkpoint}")
-        assert pathmgr.exists(opt_checkpoint), "resume_checkpoint does not exist."
-        state_dict = dist_util.load_state_dict(
-            pathmgr.get_local_path(opt_checkpoint), map_location=dist_util.dev()
-        )
+        assert opt_checkpoint.exists(), "resume_checkpoint does not exist."
+        state_dict = dist_util.load_state_dict(opt_checkpoint, map_location=dist_util.dev())
         self.opt.load_state_dict(state_dict)
 
     def run_loop(self):
@@ -308,63 +290,27 @@ class TrainLoop:
     def save(self, save_latest=False):
         filename_ckpt = self.ckpt_file_name()
         filename_opt = filename_ckpt.replace("model", "opt")
-        with tempfile.TemporaryDirectory() as tmpdirname:
-
-            def save_checkpoint(params):
-                state_dict = self.mp_trainer.master_params_to_state_dict(params)
-                logger.log("saving model...")
-                tmp_checkpoint_path = os.path.join(tmpdirname, filename_ckpt)
-                with open(
-                    tmp_checkpoint_path,
-                    "wb",
-                ) as f:
-                    torch.save(state_dict, f)
-
-                tmp_opt_path = os.path.join(tmpdirname, filename_opt)
-                with open(
-                    tmp_opt_path,
-                    "wb",
-                ) as f:
-                    torch.save(self.opt.state_dict(), f)
-                return tmp_checkpoint_path, tmp_opt_path
-
-            tmp_checkpoint_path, tmp_opt_path = save_checkpoint(
-                self.mp_trainer.master_params
-            )
-
-            pathmgr.copy(
-                src_path=tmp_checkpoint_path,
-                dst_path=os.path.join(self.save_dir, filename_ckpt),
-                overwrite=True,
-            )
-            pathmgr.copy(
-                src_path=tmp_opt_path,
-                dst_path=os.path.join(self.save_dir, filename_opt),
-                overwrite=True,
-            )
-            if save_latest:
-                pathmgr.copy(
-                    src_path=tmp_checkpoint_path,
-                    dst_path=os.path.join(self.save_dir, "model_latest.pt"),
-                    overwrite=True,
-                )
-                pathmgr.copy(
-                    src_path=tmp_opt_path,
-                    dst_path=os.path.join(self.save_dir, "opt_latest.pt"),
-                    overwrite=True,
-                )
-
+        
+        state_dict = self.mp_trainer.master_params_to_state_dict(self.mp_trainer.master_params)
+        logger.log("saving model...")
+        with open(self.save_dir / filename_ckpt, "wb") as f:
+            torch.save(state_dict, f)
+        with open(self.save_dir / filename_opt, "wb") as f:
+            torch.save(self.opt.state_dict(), f)
+            
+        if save_latest:
+            with open(self.save_dir / "model_latest.pt", "wb") as f:
+                torch.save(state_dict, f)
+            with open(self.save_dir / "opt_latest.pt", "wb") as f:
+                torch.save(self.opt.state_dict(), f)
+            
     def evaluate(self, epoch):
         if not self.args.eval_during_training:
             return
         self.model.eval()
         for evaluator, suffix in zip(self.test_evaluators, self.test_suffixs):
             eval_name = f"eval{suffix}"
-            csv_path = os.path.join(
-                self.save_dir,
-                eval_name,
-                f"results_{self.step+self.resume_step}.csv",
-            )
+            csv_path = self.save_dir, eval_name, f"results_{self.step+self.resume_step}.csv"
             start_eval = time.time()
             log, all_results_df, _ = evaluator.evaluate_all()
             evaluator.store_all_results(all_results_df, csv_path)
@@ -381,10 +327,8 @@ class TrainLoop:
         self.model.eval()
         for visualizer, suffix in zip(self.test_evaluators, self.test_suffixs):
             vis_name = f"vis{suffix}"
-            output_dir = os.path.join(
-                self.save_dir, vis_name, f"step_{self.step+self.resume_step}"
-            )
-            pathmgr.mkdirs(output_dir)
+            output_dir = self.save_dir / vis_name / f"step_{self.step+self.resume_step}"
+            output_dir.mkdir(parents=True, exist_ok=True)
             start_vis = time.time()
             visualizer.visualize_subset(output_dir)
             end_vis = time.time()

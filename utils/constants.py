@@ -20,8 +20,8 @@ INPUT_RHAND_IDCES = (42, 43, 44)
 
 class DatasetType(str, Enum):
     DEFAULT = "default"
-    AMASS = "amass"
-    AMASSFULL = "amassFull"
+    AMASS = "amass_p1"
+    AMASSFULL = "amass_p2"
     ITW = "itw"
     GORP = "gorp"
 

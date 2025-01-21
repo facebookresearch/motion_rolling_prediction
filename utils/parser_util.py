@@ -8,8 +8,8 @@ import json
 import os
 import sys
 from argparse import ArgumentParser
+from pathlib import Path
 
-from utils.config import pathmgr
 from utils.constants import (
     BackpropThroughTimeType,
     ConditionMasker,
@@ -44,15 +44,17 @@ def parse_and_load_from_model(parser):
 
     # load args from model
     model_path = get_model_path_from_args()
-    args_path = pathmgr.get_local_path(
-        os.path.join(os.path.dirname(model_path), "args.json")
-    )
+    args_path = os.path.join(os.path.dirname(model_path), "args.json")
     assert os.path.exists(args_path), "Arguments json file was not found!"
     with open(args_path, "r") as fr:
         model_args = json.load(fr)
     for a in args_to_overwrite:
         if a in model_args.keys():
             args.__dict__[a] = model_args[a]
+            if a == "dataset":
+                args.__dict__[a] = DatasetType(model_args[a])
+            elif "_dir" in a or "_path" in a:
+                args.__dict__[a] = Path(model_args[a])
         else:
             print(
                 "Warning: was not able to load [{}], using default value [{}] instead.".format(
@@ -69,7 +71,7 @@ def get_args_per_group_name(parser, args, group_name):
                 a.dest: getattr(args, a.dest, None) for a in group._group_actions
             }
             return list(argparse.Namespace(**group_dict).__dict__.keys())
-    return ValueError("group_name was not found.")
+    raise ValueError("group_name was not found.")
 
 
 def get_model_path_from_args():
@@ -99,9 +101,9 @@ def add_base_options(parser):
     )
     group.add_argument(
         "--results_dir",
-        default="manifold://xr_body/tree/personal/gbarquero/omp",
+        default="./results",
         # required=True,
-        type=str,
+        type=Path,
         help="Path to save checkpoints, logs, and results.",
     )
 
@@ -399,14 +401,14 @@ def add_data_options(parser):
     )
     group.add_argument(
         "--dataset_path",
-        default="manifold://xr_body/tree/personal/gbarquero/datasets/agrol/AMASS/new_format_data",
-        type=str,
+        default="./datasets_processed/",
+        type=Path,
         help="Dataset path",
     )
     group.add_argument(
         "--support_dir",
-        type=str,
-        default="manifold://xr_body/tree/personal/gbarquero/datasets/agrol/SMPL/",
+        type=Path,
+        default="./SMPL/",
         help="the dir that you store your smplh and dmpls dirs",
     )
     group.add_argument(
@@ -515,8 +517,8 @@ def add_training_options(parser):
     )
     group.add_argument(
         "--resume_checkpoint",
-        default="",
-        type=str,
+        default=None,
+        type=Path,
         help="If not empty, will start from the specified checkpoint (path to model###.pt file).",
     )
     group.add_argument(
@@ -606,7 +608,7 @@ def add_sampling_options(parser):
     group.add_argument(
         "--model_path",
         required=True,
-        type=str,
+        type=Path,
         help="Path to model####.pt file to be sampled.",
     )
     group.add_argument(
@@ -641,12 +643,6 @@ def add_sampling_options(parser):
     group.add_argument(
         "--eval_batch_size", default=1, type=int, help="Batch size during sampling."
     )
-    group.add_argument(
-        "--precomputed_path",
-        default=None,
-        type=str,
-        help="Path to precomputed data (e.g., for visualization of baselines).",
-    )
 
 
 def add_evaluation_options(parser):
@@ -654,7 +650,7 @@ def add_evaluation_options(parser):
     group.add_argument(
         "--model_path",
         required=True,
-        type=str,
+        type=Path,
         help="Path to model####.pt file to be sampled.",
     )
 

@@ -17,9 +17,7 @@ from loguru import logger
 
 from utils.model_util import load_diffusion_model
 from utils.parser_util import sample_args
-
-pathmgr = None  # TODO: replace all dependencies on pathmgr
-bootstrap = None  # TODO: remove dependency
+from pathlib import Path
 
 
 def make_args_retrocompatible(args):
@@ -59,8 +57,8 @@ def main():
     logger.info("Loading model...")
     model, diffusion = load_diffusion_model(args, device=device)
 
-    exp_name = args.model_path.split("/")[-2]
-    checkpoint_name = args.model_path.split("/")[-1].split(".")[0]
+    exp_name = args.model_path.parts[-2]
+    checkpoint_name = args.model_path.parts[-1].split(".")[0]
     subfolder_name = (
         checkpoint_name[6:] if checkpoint_name.startswith(
             "model") else checkpoint_name
@@ -78,13 +76,10 @@ def main():
         name_results_folder += "_init_ik"
     if args.use_real_input:
         name_results_folder += f"_real_input_C{args.input_conf_threshold}"
-    output_dir = os.path.join(
-        args.results_dir, name_results_folder, exp_name, subfolder_name
-    )
-    pathmgr.mkdirs(output_dir)
+    output_dir = args.results_dir / name_results_folder / exp_name / subfolder_name
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     if args.vis or args.vis_gt:
-        bootstrap(platform="egl")
         visualizer = VisualizerWrapper(
             args, generator, dataset, body_model, device)
         if args.vis:
@@ -128,7 +123,7 @@ def main():
             batch_size=args.eval_batch_size,
         )
         log, all_results_df, arr_based_metrics = evaluator.evaluate_all()
-        csv_path = os.path.join(output_dir, f"results_{args.dataset}.csv")
+        csv_path = output_dir / f"results_{args.dataset}.csv"
         evaluator.store_all_results(all_results_df, csv_path)
         evaluator.store_plots(arr_based_metrics, output_dir)
         evaluator.print_results(log)

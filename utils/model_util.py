@@ -12,7 +12,6 @@ from model.maskers import create_masker
 from model.mdm_model import RollingMDM, RollingTransformer, StandardMDM
 from model.meta_model import MetaModel, MetaModelRolling
 from model.model_wrapper import ModelWrapper
-from utils.config import pathmgr
 from utils.constants import DiffusionType
 
 
@@ -25,9 +24,7 @@ def load_diffusion_model(args, device="cuda"):
     )
 
     logger.info(f"Loading checkpoints from [{args.model_path}]...")
-    state_dict = torch.load(
-        pathmgr.get_local_path(args.model_path), map_location=device
-    )
+    state_dict = torch.load(args.model_path, map_location=device)
     load_model_wo_clip(model, state_dict)
 
     model.to(device)  # dist_util.dev())

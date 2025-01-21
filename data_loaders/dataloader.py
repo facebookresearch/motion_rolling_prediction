@@ -1,10 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. All Rights Reserved
 import glob
 import json
-import multiprocessing as mp
 import os
 import sys
-import tempfile
 
 from dataclasses import dataclass
 from typing import List, Optional, Set, Tuple
@@ -22,8 +20,7 @@ from utils.constants import (
     SMPLGenderParam,
     SMPLModelType,
 )
-
-pathmgr = None # TODO: replace all dependencies on pathmgr
+from pathlib import Path
 
 @dataclass
 class DatasetDataStruct:
@@ -287,7 +284,7 @@ class OnlineTrainDataset(TrainDataset):
 class TestDataset(Dataset):
     def __init__(
         self,
-        name: str,
+        name: DatasetType,
         dataset_path: str,
         no_normalization: bool,
         max_samples: int = -1,
@@ -301,9 +298,9 @@ class TestDataset(Dataset):
         test_split: str = "test",
         **kwargs,
     ):
-        dataset_data = load_data_from_manifold(
+        dataset_data = load_data(
             name,
-            dataset_path,
+            Path(dataset_path),
             test_split,
             max_samples=max_samples,
         )
@@ -342,11 +339,12 @@ class TestDataset(Dataset):
             self.tracking_gaps = None
 
     def inject_eval_gaps(
-        self, dataset_name: str, dataset_path: str
+        self, dataset_name: DatasetType, dataset_path: Path
     ) -> List[TrackingSignalGapsInfo]:
         assert self.eval_gap_config is not None, "No eval gap config provided!"
+        dataset_path = dataset_path / dataset_name.value
         gaps_json = load_gaps_from_manifold(
-            dataset_name, dataset_path, self.eval_gap_config
+            dataset_path, self.eval_gap_config
         )
         # sparse shape --> [seq_len, feats]
         masker_type = ConditionMasker.parse(gaps_json["metadata"]["masker"])
@@ -422,36 +420,22 @@ def get_motion(motion_list):
     return motions, sparses
 
 
-def get_path(dataset_path, split):
+def get_path(dataset_path:Path, split:str):
     data_list_path = []
-    parent_data_path = glob.glob(dataset_path + "/*")
-    for d in parent_data_path:
-        if os.path.isdir(d):
-            files = glob.glob(d + "/" + split + "/*pt")
+    parent_data_path = list(dataset_path.glob("*"))
+    for path in parent_data_path:
+        if path.is_dir():
+            files = list(path.glob(f"{split}/*pt"))
             data_list_path.extend(files)
     return data_list_path
 
 
-def get_manifold_paths(dataset_path, split):
-    data_list_path = []
-    parent_data_path = pathmgr.ls(dataset_path)
-    for d in parent_data_path:
-        if pathmgr.isdir(os.path.join(dataset_path, d, split)):
-            files = [
-                os.path.join(dataset_path, d, split, f)
-                for f in pathmgr.ls(os.path.join(dataset_path, d, split))
-                if f.endswith(".pt")
-            ]
-            data_list_path.extend(files)
-    return data_list_path
-
-
-def load_data_from_manifold(
-    dataset,
-    dataset_path,
-    split,
-    total_length=196,
-    max_samples=-1,
+def load_data(
+    dataset: DatasetType,
+    dataset_path: Path,
+    split: str,
+    total_length:int=196,
+    max_samples:int=-1,
 ) -> DatasetDataStruct:
     """
     Collect the data for the given split
@@ -480,34 +464,26 @@ def load_data_from_manifold(
             mean : mean of train dataset
             std : std of train dataset
     """
-
-    motion_list = get_manifold_paths(dataset_path, split)
+    dataset_path = dataset_path / dataset.value / "new_format_data"
+    motion_list = get_path(dataset_path, split)
+    assert len(motion_list) > 0, f"No data found in {dataset_path}"
     if max_samples != -1:
         motion_list = motion_list[:max_samples]
     mean_path, std_path = get_mean_std_path(dataset)
     logger.info(f"Loading '{split}' data from manifold: {dataset_path}")
-    num_mp = 8 if split != "train" else 16
-    if len(motion_list) < 10:
-        num_mp = 1
-    with mp.Pool(num_mp) as p:
-        local_paths = list(
-            tqdm(p.imap(pathmgr.get_local_path, motion_list), total=len(motion_list))
-        )
-        data = [torch.load(i) for i in tqdm(local_paths)]
-        p.close()
-        p.join()
+    data = [torch.load(i) for i in tqdm(motion_list)]
 
     filename_list = [
-        "-".join([i.split("/")[-3], i.split("/")[-1]]).split(".")[0]
+        "-".join([i.parts[-3], i.parts[-1]]).split(".")[0]
         for i in motion_list
     ]
     if "test" in split:
         mean = torch.load(
-            pathmgr.get_local_path(os.path.join(dataset_path, mean_path)),
+            dataset_path / mean_path,
             weights_only=True,
         )
         std = torch.load(
-            pathmgr.get_local_path(os.path.join(dataset_path, std_path)),
+            dataset_path / std_path,
             weights_only=True,
         )
         return DatasetDataStruct(filename_list, data, mean, std)
@@ -525,9 +501,9 @@ def load_data_from_manifold(
         filtered_filenames.append(filename_list[idx])
     print(f"Before filtering: {len(data)}\n  After filtering: {len(filtered_data)}")
 
-    if pathmgr.exists(os.path.join(dataset_path, mean_path)):
-        mean = torch.load(pathmgr.get_local_path(os.path.join(dataset_path, mean_path)))
-        std = torch.load(pathmgr.get_local_path(os.path.join(dataset_path, std_path)))
+    if (dataset_path / mean_path).exists() and (dataset_path / std_path).exists():
+        mean = torch.load(os.path.join(dataset_path, mean_path))
+        std = torch.load(os.path.join(dataset_path, std_path))
         print("Loading mean and std from manifold")
     else:
         print(
@@ -537,114 +513,24 @@ def load_data_from_manifold(
         tmp_data_list = torch.cat(all_motions, dim=0)
         mean = tmp_data_list.mean(dim=0).float()
         std = tmp_data_list.std(dim=0).float()
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            with open(os.path.join(tmpdirname, mean_path), "wb") as f:
-                torch.save(mean, f)
-            with open(os.path.join(tmpdirname, std_path), "wb") as f:
-                torch.save(std, f)
-            pathmgr.copy(
-                src_path=os.path.join(tmpdirname, mean_path),
-                dst_path=os.path.join(dataset_path, mean_path),
-                overwrite=True,
-            )
-            pathmgr.copy(
-                src_path=os.path.join(tmpdirname, std_path),
-                dst_path=os.path.join(dataset_path, std_path),
-                overwrite=True,
-            )
+        with open((dataset_path / mean_path), "wb") as f:
+            torch.save(mean, f)
+        with open((dataset_path / std_path), "wb") as f:
+            torch.save(std, f)
         print("Mean and std saved to manifold: ", dataset_path)
 
     return DatasetDataStruct(filtered_filenames, filtered_data, mean, std)
 
 
 def load_gaps_from_manifold(
-    dataset: str,
-    dataset_path: str,
+    dataset_path: Path,
     eval_name: str,
 ):
-    folder_path = os.path.dirname(dataset_path)
-    manifold_path = os.path.join(folder_path, "eval_gap_configs", eval_name + ".json")
-    assert pathmgr.exists(manifold_path), f"File {manifold_path} does not exist"
-    local_path = pathmgr.get_local_path(manifold_path)
+    local_path = os.path.join(dataset_path, "eval_gap_configs", eval_name + ".json")
+    assert os.path.exists(local_path), f"File {local_path} does not exist"
     with open(local_path, "r") as f:
         data = json.load(f)
     return data
-
-
-def load_data(dataset, dataset_path, split, **kwargs):
-    """
-    Collect the data for the given split
-
-    Args:
-        - For test:
-            dataset : the name of the testing dataset
-            split : test or train
-        - For train:
-            dataset : the name of the training dataset
-            split : train or test
-            input_motion_length : the input motion length
-
-    Outout:
-        - For test:
-            filename_list : List of all filenames in the dataset
-            motion_list : List contains N dictoinaries, with
-                        "hmd_position_global_full_gt_list" - sparse features of the 3 joints
-                        "local_joint_parameters_gt_list" - body parameters Nx7[tx,ty,tz,rx,ry,rz] as the input of the human kinematic model
-                        "head_global_trans_list" - Tx4x4 matrix which contains the global rotation and global translation of the head movement
-            mean : mean of train dataset
-            std : std of train dataset
-        - For train:
-            new_motions : motions indicates the sequences of rotation representation of each joint
-            new_sparses : sparses indicates the sequences of sparse features of the 3 joints
-            mean : mean of train dataset
-            std : std of train dataset
-    """
-
-    if split == "test":
-        motion_list = get_path(dataset_path, split)
-        mean_path, std_path = get_mean_std_path(dataset)
-        filename_list = [
-            "-".join([i.split("/")[-3], i.split("/")[-1]]).split(".")[0]
-            for i in motion_list
-        ]
-        motion_list = [torch.load(i) for i in tqdm(motion_list)]
-        mean = torch.load(os.path.join(dataset_path, mean_path))
-        std = torch.load(os.path.join(dataset_path, std_path))
-        return filename_list, motion_list, mean, std
-
-    assert split == "train"
-    assert (
-        "input_motion_length" in kwargs
-    ), "Please specify the input_motion_length to load training dataset"
-
-    motion_list = get_path(dataset_path, split)
-    mean_path, std_path = get_mean_std_path(dataset)
-    input_motion_length = kwargs["input_motion_length"]
-    motion_list = [torch.load(i) for i in tqdm(motion_list)]
-
-    motions, sparses = get_motion(motion_list)
-
-    new_motions = []
-    new_sparses = []
-    for idx, motion in enumerate(motions):
-        if motion.shape[0] < input_motion_length:  # Arbitrary choice
-            continue
-        new_sparses.append(sparses[idx])
-        new_motions.append(motions[idx])
-
-    if os.path.exists(os.path.join(dataset_path, mean_path)):
-        mean = torch.load(os.path.join(dataset_path, mean_path))
-        std = torch.load(os.path.join(dataset_path, std_path))
-    else:
-        tmp_data_list = torch.cat(new_motions, dim=0)
-        mean = tmp_data_list.mean(axis=0).float()
-        std = tmp_data_list.std(axis=0).float()
-        with open(os.path.join(dataset_path, mean_path), "wb") as f:
-            torch.save(mean, f)
-        with open(os.path.join(dataset_path, std_path), "wb") as f:
-            torch.save(std, f)
-
-    return new_motions, new_sparses, mean, std
 
 
 def get_dataloader(dataset, split, batch_size, num_workers=32, persistent_workers=True):

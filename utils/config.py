@@ -5,8 +5,6 @@ import os
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
 
-pathmgr = None # TODO remove this dependency on pathmgr
-
 
 SMPL_DATA_MANIFOLD_PATH = (
     "manifold://xr_body/tree/personal/gbarquero/datasets/agrol/body_models/smpl"

@@ -4,18 +4,16 @@ import json
 import os
 import random
 
-from data_loaders.dataloader import load_data_from_manifold
+from data_loaders.dataloader import load_data
 
 from loguru import logger
 from model.maskers import compute_masked_segments
-from utils.config import pathmgr
 from utils.constants import ConditionMasker, DatasetType
+from pathlib import Path, PurePosixPath
 
 
 def main(
     dataset_name: str,
-    dataset_path: str,
-    store_path: str,
     eval_name: str,
     seed: int,
     masker: ConditionMasker,
@@ -29,13 +27,15 @@ def main(
     This function generates the gaps for the evaluation of the tracking loss recovery
     It stores the gaps in a json file to be later used by the evaluation script
     """
-    json_path = os.path.join(store_path, eval_name + ".json")
-    if pathmgr.exists(json_path):
+    dataset_path = Path(os.path.join("datasets_processed", dataset_name, "new_format_data"))
+    store_path = Path(os.path.join("datasets_processed", dataset_name, "eval_gap_configs"))
+    json_path = store_path / (eval_name + ".json")
+    if json_path.exists():
         logger.info(f"Aborting... file already exists: {json_path}")
         return
 
     num_entities = len(ConditionMasker.get_entities_idces(masker, dataset_name))
-    dataset_data = load_data_from_manifold(
+    dataset_data = load_data(
         dataset_name,
         dataset_path,
         "test",
@@ -57,7 +57,7 @@ def main(
     # store to manifold
     metadata = {
         "dataset_name": dataset_name,
-        "dataset_path": dataset_path,
+        "dataset_path": str(PurePosixPath(dataset_path)),
         "eval_name": eval_name,
         "seed": seed,
         "masker": masker,
@@ -67,8 +67,8 @@ def main(
         "min_dist": min_dist,
         "left_padding": left_padding,
     }
-    pathmgr.mkdirs(store_path)
-    with pathmgr.open(json_path, "w") as f:
+    store_path.mkdir(parents=True, exist_ok=True)
+    with open(json_path, "w") as f:
         # save json
         json.dump(
             {
@@ -90,18 +90,6 @@ def run():
         default=DatasetType.AMASS,
         type=DatasetType,
         help="Dataset name.",
-    )
-    parser.add_argument(
-        "--dataset_path",
-        default="manifold://xr_body/tree/personal/gbarquero/datasets/agrol/AMASS/new_format_data",
-        type=str,
-        help="Dataset path",
-    )
-    parser.add_argument(
-        "--save_path",
-        default="manifold://xr_body/tree/personal/gbarquero/datasets/agrol/AMASS/eval_gap_configs",
-        type=str,
-        help="Save path",
     )
     parser.add_argument(
         "--eval_name",
@@ -154,8 +142,6 @@ def run():
 
     main(
         args.dataset,
-        args.dataset_path,
-        args.save_path,
         args.eval_name,
         args.seed,
         args.masker,

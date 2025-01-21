@@ -17,7 +17,6 @@ from torch.nn.utils.rnn import pad_sequence
 
 from utils import utils_transform
 
-from utils.config import pathmgr
 from utils.constants import DataTypeGT, DiffusionType, ModelOutputType, RollingType
 
 
@@ -67,11 +66,7 @@ def create_generator(args, model, diffusion, dataset, device, body_model):
     :param diffusion: the diffusion object to sample for.
     """
 
-    if getattr(args, "precomputed_path", None) is not None:
-        return PreComputedGenerationWrapper(
-            args, model, diffusion, dataset, device, body_model
-        )
-    elif args.diffusion_type == DiffusionType.ROLLING:
+    if args.diffusion_type == DiffusionType.ROLLING:
         return RollingGenerationWrapper(
             args, model, diffusion, dataset, device, body_model
         )
@@ -597,68 +592,3 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
             all_info["gt"] = self.transform_to_aanorm(gt_data.cpu())
             all_info["prediction"] = self.transform_to_aanorm(output.cpu())
         return result, all_info
-
-
-class PreComputedGenerationWrapper(BaseGenerationWrapper):
-    """
-    Loads precomputed results from a file. Designed for baselines comparison.
-    """
-
-    def __init__(self, args, model, diffusion, dataset, device, body_model):
-        super().__init__(args, model, diffusion, dataset, device, body_model)
-        self.precomputed_path = args.precomputed_path
-        assert pathmgr.exists(
-            self.precomputed_path
-        ), f"{self.precomputed_path} not found"
-        self.model_name = self.precomputed_path.split("/")[-1]
-        logger.info(
-            f"[{self.model_name}] Loading precomputed results from {self.precomputed_path}"
-        )
-
-    def get_folder_suffix(self):
-        return self.model_name
-
-    def __call__(
-        self,
-        gt_data,
-        sparse_original,
-        filenames: Optional[List[str]],
-        **kwargs,
-    ) -> Tuple[Dict[ModelOutputType, Optional[torch.Tensor]], Dict[str, Any]]:
-        """
-        gt_data: [bs, seq, f1]
-        sparse_original: [bs, seq, f2]
-        """
-        assert (
-            len(gt_data.shape) == len(sparse_original.shape) == 3
-        ), "[bs, seq, f] expected"
-        bs, seq, feats_num = gt_data.shape
-        # load precomputed results
-        assert filenames is not None, "filenames must be provided"
-        filenames_tgt = []
-        for f in filenames:
-            dataset, seq_num = f.split("-")
-            file_path = f"{dataset}/test/{seq_num}.npz"
-            filenames_tgt.append(file_path)
-        paths_to_precomputed = [
-            os.path.join(self.precomputed_path, f) for f in filenames_tgt
-        ]
-        all_npz_loaded = [
-            np.load(pathmgr.get_local_path(p))["relative_rots"]
-            for p in paths_to_precomputed
-        ]
-        all_frames = [x.shape[0] for x in all_npz_loaded]
-        print(all_frames)
-        all_npz_loaded = pad_sequence(
-            [torch.tensor(x) for x in all_npz_loaded], batch_first=True
-        )
-        assert all_npz_loaded.shape == (
-            bs,
-            seq,
-            feats_num,
-        ), f"shape mismatch: {all_npz_loaded.shape} != {bs, seq, feats_num}"
-        result = {
-            ModelOutputType.RELATIVE_ROTS: all_npz_loaded,
-            ModelOutputType.SHAPE_PARAMS: None,
-        }
-        return result, {}

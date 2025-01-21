@@ -1,16 +1,15 @@
 # Copyright (c) Meta Platforms, Inc. All Rights Reserved
 import json
-import os
 import random
 
-import tempfile
+from pathlib import Path, PurePosixPath
 
 import numpy as np
 
 import torch
 from data_loaders.dataloader import (
     get_dataloader,
-    load_data_from_manifold,
+    load_data,
     OnlineTrainDataset,
     TrainDataset,
 )
@@ -19,7 +18,6 @@ from runner.training_loop import TrainLoop
 
 from utils import dist_util
 
-from utils.config import pathmgr
 from utils.constants import DiffusionType
 from utils.model_util import create_model_and_diffusion, get_model_class
 from utils.parser_util import train_args
@@ -73,25 +71,25 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-
-    save_dir = os.path.join(args.results_dir, "checkpoints", args.exp_name)
-    if save_dir is None:
+    
+    if args.results_dir is None:
         raise FileNotFoundError("save_dir was not specified.")
-    elif pathmgr.exists(save_dir) and not args.overwrite:
+
+    save_dir = Path(args.results_dir) / "checkpoints" / args.exp_name
+    if save_dir.exists() and not args.overwrite:
         raise FileExistsError("save_dir [{}] already exists.".format(save_dir))
-    elif not pathmgr.exists(save_dir):
-        pathmgr.mkdirs(save_dir)
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        tmp_args_path = os.path.join(tmpdirname, "args.json")
-        args_path = os.path.join(save_dir, "args.json")
-        with open(tmp_args_path, "w") as fw:
-            json.dump(vars(args), fw, indent=4, sort_keys=True)
-        pathmgr.copy(
-            src_path=tmp_args_path, dst_path=args_path, overwrite=True
-        )  # copy to manifold
+    elif not save_dir.exists():
+        save_dir.mkdir(parents=True, exist_ok=True)
+    with open(save_dir / "args.json", "w") as fw:
+        # from Path to str
+        serializable_args = {
+            k: str(PurePosixPath(v)) if isinstance(v, Path) else v 
+            for k, v in vars(args).items()
+        }
+        json.dump(serializable_args, fw, indent=4, sort_keys=True)
 
     logger.info("creating data loader...")
-    dataset_data = load_data_from_manifold(
+    dataset_data = load_data(
         args.dataset,
         args.dataset_path,
         "train",
