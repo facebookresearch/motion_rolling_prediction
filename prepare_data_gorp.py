@@ -11,18 +11,19 @@ from human_body_prior.tools.rotation_tools import aa2matrot, local2global_pose
 from loguru import logger
 from tqdm import tqdm
 from utils import utils_transform
-from utils.config import pathmgr
 from utils.constants import SMPLGenderParam, SMPLModelType
 from utils.momentum_util import (
     transform_controllers_from_gorp_to_smpl,
     transform_hand_tracking_from_gorp_to_smpl,
 )
 from utils.rotation_conversions import quaternion_to_matrix
+from pathlib import Path
 
+body_model_type = SMPLModelType.SMPLX
 
 def from_smpl_to_input_features(
     smpl_pose_vec: torch.Tensor, pose_joints_world: torch.Tensor, kintree
-):
+) -> dict:
     """
     smpl_pose_vec: [num_frames, 66] -> pose of the body in SMPL format
     pose_joints: [num_frames, 22, 3] -> position of the joints in the world coordinate system
@@ -150,15 +151,6 @@ def get_downsample_idces(num_frames, fps, target_fps):
 
 
 def main(args, device="cuda:0"):
-    if args.use_vip:
-        from iopath import PathManager
-        from iopath.fb.manifold import ManifoldPathHandler
-
-        vip_pathmgr = PathManager()
-        vip_pathmgr.register_handler(ManifoldPathHandler(use_vip=True))
-    else:
-        vip_pathmgr = pathmgr
-
     # list folders of args.splits_dir
     body_model = None
     all_datasets = sorted(os.listdir(args.splits_dir))
@@ -166,27 +158,23 @@ def main(args, device="cuda:0"):
         for phase in ["test", "train"]:
             # all_offsets = []
             logger.info(f"Processing {dataroot_subset} {phase}...")
-            split_file = os.path.join(
-                args.splits_dir, dataroot_subset, phase + "_split.txt"
-            )
-            if not pathmgr.exists(split_file):
+            split_file = args.splits_dir / dataroot_subset / (phase + "_split.txt")
+            if not split_file.exists():
                 logger.info(f"{split_file} does not exist, skipping...")
                 continue
 
-            savedir = os.path.join(args.save_dir, dataroot_subset, phase)
-            pathmgr.mkdirs(savedir)
+            savedir = args.save_dir / dataroot_subset / phase
+            savedir.mkdir(parents=True, exist_ok=True)
 
             with open(split_file, "r") as f:
                 filepaths = [line.strip() for line in f]
 
             for idx, filepath in tqdm(enumerate(filepaths)):
                 dst_fname = "{}.pt".format(idx + 1)
-                manifold_path = os.path.join(savedir, dst_fname)
-                # if pathmgr.exists(manifold_path):
-                #    logger.info(f"File {manifold_path} already exists, skipping...")
-                #    continue
+                current_file_path = args.root_dir / filepath
+                assert current_file_path.exists(), f"{current_file_path} does not exist. Aborting..."
                 bdata = np.load(
-                    vip_pathmgr.get_local_path(os.path.join(args.root_dir, filepath)),
+                    current_file_path,
                     allow_pickle=True,
                 )
                 fps = 30  # ALWAYS FOR GORP
@@ -209,7 +197,7 @@ def main(args, device="cuda:0"):
                         np.ones(headset_transform.shape[0]) * tr_data["rConValid"]
                     )
                     smpl_inputs_3p = torch.stack(
-                        smpl_inputs_3p, axis=1
+                        smpl_inputs_3p, dim=1
                     )  # [frames, 3, 7]
                     smpl_inputs_3p = transform_controllers_from_gorp_to_smpl(
                         smpl_inputs_3p
@@ -221,7 +209,7 @@ def main(args, device="cuda:0"):
                     lhand_conf = tr_data["leftHandConfidence"]
                     rhand_conf = tr_data["rightHandConfidence"]
                     smpl_inputs_3p = torch.stack(
-                        smpl_inputs_3p, axis=1
+                        smpl_inputs_3p, dim=1
                     )  # [frames, 3, 7]
                     smpl_inputs_3p = transform_hand_tracking_from_gorp_to_smpl(
                         smpl_inputs_3p
@@ -255,7 +243,6 @@ def main(args, device="cuda:0"):
                     ),
                 }
                 if body_model is None:
-                    body_model_type = SMPLModelType.SMPLX
                     logger.info("Initializing body model: {}".format(body_model_type))
                     body_model = BodyModelsWrapper(args.support_dir)
                 body_pose_world = body_model(
@@ -290,12 +277,7 @@ def main(args, device="cuda:0"):
                 data["filepath"] = filepath
                 data["body_parms_list"] = body_parms
 
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    tmp_local_path = os.path.join(tmpdirname, dst_fname)
-                    torch.save(data, tmp_local_path)
-                    pathmgr.copy(
-                        src_path=tmp_local_path, dst_path=manifold_path, overwrite=True
-                    )
+                torch.save(data, savedir / dst_fname)
 
 
 def run():
@@ -304,29 +286,24 @@ def run():
     )
     parser.add_argument(
         "--splits_dir",
-        type=str,
-        default="prepare_data/data_split",
+        type=Path,
+        default="prepare_data/gorp",
         help="=dir where the data splits are defined",
     )
     parser.add_argument(
         "--support_dir",
-        type=str,
+        type=Path,
         default=None,
         help="=dir where you put your smplh and dmpls dirs",
     )
     parser.add_argument(
         "--save_dir",
-        type=str,
-        default=None,
+        type=Path,
+        default="./datasets_processed/gorp/new_format_data",
         help="=dir where you want to save your generated data",
     )
     parser.add_argument(
-        "--root_dir", type=str, default=None, help="=dir where you put your AMASS data"
-    )
-    parser.add_argument(
-        "--use_vip",
-        action="store_true",
-        help="If True, it will use the --vip argument when accessing the Manifold bucket.",
+        "--root_dir", type=Path, required=True, help="=dir where you put your AMASS data"
     )
     parser.add_argument(
         "--out_fps",

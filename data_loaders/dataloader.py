@@ -343,7 +343,7 @@ class TestDataset(Dataset):
     ) -> List[TrackingSignalGapsInfo]:
         assert self.eval_gap_config is not None, "No eval gap config provided!"
         dataset_path = dataset_path / dataset_name.value
-        gaps_json = load_gaps_from_manifold(
+        gaps_json = load_gaps(
             dataset_path, self.eval_gap_config
         )
         # sparse shape --> [seq_len, feats]
@@ -470,7 +470,7 @@ def load_data(
     if max_samples != -1:
         motion_list = motion_list[:max_samples]
     mean_path, std_path = get_mean_std_path(dataset)
-    logger.info(f"Loading '{split}' data from manifold: {dataset_path}")
+    logger.info(f"Loading '{split}' data: {dataset_path}")
     data = [torch.load(i) for i in tqdm(motion_list)]
 
     filename_list = [
@@ -504,10 +504,10 @@ def load_data(
     if (dataset_path / mean_path).exists() and (dataset_path / std_path).exists():
         mean = torch.load(os.path.join(dataset_path, mean_path))
         std = torch.load(os.path.join(dataset_path, std_path))
-        print("Loading mean and std from manifold")
+        print("Loading mean and std")
     else:
         print(
-            "Mean and std not available in manifold! Computing mean and std from training data..."
+            "Mean and std not available! Computing mean and std from training data..."
         )
         all_motions = [d["rotation_local_full_gt_list"] for d in filtered_data]
         tmp_data_list = torch.cat(all_motions, dim=0)
@@ -517,12 +517,12 @@ def load_data(
             torch.save(mean, f)
         with open((dataset_path / std_path), "wb") as f:
             torch.save(std, f)
-        print("Mean and std saved to manifold: ", dataset_path)
+        print("Mean and std saved to: ", dataset_path)
 
     return DatasetDataStruct(filtered_filenames, filtered_data, mean, std)
 
 
-def load_gaps_from_manifold(
+def load_gaps(
     dataset_path: Path,
     eval_name: str,
 ):

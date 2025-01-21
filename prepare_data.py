@@ -194,10 +194,7 @@ def main(args, device="cuda:0"):
                     continue
                 bdata_poses = bdata["poses"][downsamp_inds, ...]
                 bdata_trans = bdata["trans"][downsamp_inds, ...]
-                smpl_gender = (
-                    "neutral" if args.use_neutral_shape else str(
-                        bdata["gender"])
-                )
+                smpl_gender = bdata["gender"]
 
                 body_parms = {
                     "root_orient": torch.Tensor(
@@ -210,11 +207,10 @@ def main(args, device="cuda:0"):
                         bdata_trans
                     ),  # controls the global body position
                 }
-                if not args.use_neutral_shape:
-                    bdata_betas = bdata["betas"][:16]
-                    body_parms["betas"] = torch.Tensor(bdata_betas).repeat(
-                        bdata_poses.shape[0], 1
-                    )
+                bdata_betas = bdata["betas"][:16]
+                body_parms["betas"] = torch.Tensor(bdata_betas).repeat(
+                    bdata_poses.shape[0], 1
+                )
                 body_pose_world = body_model(
                     {k: v.to(device) for k, v in body_parms.items()},
                     body_model_type,
@@ -266,11 +262,6 @@ def run():
     )
     parser.add_argument(
         "--root_dir", type=str, default=None, help="=dir where you put your AMASS data"
-    )
-    parser.add_argument(
-        "--use_neutral_shape",
-        action="store_true",
-        help="If True, it will assume a NEUTRAL SMPL shape for blending shape params and FK (as in AvatarPoser).",
     )
     parser.add_argument(
         "--out_fps",

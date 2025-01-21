@@ -54,7 +54,7 @@ def main(
             )
             for i in range(num_entities)
         ]
-    # store to manifold
+    # store to json
     metadata = {
         "dataset_name": dataset_name,
         "dataset_path": str(PurePosixPath(dataset_path)),
