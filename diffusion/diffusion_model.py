@@ -111,16 +111,11 @@ class CustomBaseGaussianDiffusion(GaussianDiffusion):
         self.loss_dist_type = kwargs.get("loss_dist_type", LossDistType.L2)
         self.loss_velocity = kwargs.get("loss_velocity", 0.0)
         self.loss_jitter = kwargs.get("loss_jitter", 0.0)
-        self.loss_correction = kwargs.get("loss_correction", 0.0)
         self.loss_fk = kwargs.get("loss_fk", 0.0)
         self.loss_fk_vel = kwargs.get("loss_fk_vel", 0.0)
-        self.loss_fk_vel_avg = kwargs.get("loss_fk_vel_avg", 0.0)
-        self.loss_fk_vel_feet = kwargs.get("loss_fk_vel_feet", 0.0)
         if (
             self.loss_fk > 0
             or self.loss_fk_vel > 0
-            or self.loss_fk_vel_avg > 0
-            or self.loss_fk_vel_feet > 0
         ):
             support_dir = kwargs.get("support_dir", None)
             assert support_dir is not None, "Support dir is required for FK loss"
@@ -275,25 +270,25 @@ class DiffusionModel(CustomBaseGaussianDiffusion):
             target,
             output[ModelOutputType.RELATIVE_ROTS],
             dist_type=self.loss_dist_type,
-        ).mean(axis=-1)
+        ).mean(dim=-1)
         terms[MotionLossType.LOSS] += terms[MotionLossType.ROT_MSE]
         if self.loss_velocity != 0:
             terms[MotionLossType.VEL_MSE] = loss_velocity(
                 target,
                 output[ModelOutputType.RELATIVE_ROTS],
                 dist_type=self.loss_dist_type,
-            ).mean(axis=-1)
+            ).mean(dim=-1)
             terms[MotionLossType.LOSS] += (
                 terms[MotionLossType.VEL_MSE] * self.loss_velocity
             )
         if self.loss_jitter != 0:
             terms[MotionLossType.JITTER] = loss_jitter(
                 output[ModelOutputType.RELATIVE_ROTS],
-            ).mean(axis=-1)
+            ).mean(dim=-1)
             terms[MotionLossType.LOSS] += (
                 terms[MotionLossType.JITTER] * self.loss_jitter
             )
-        if self.loss_fk != 0:
+        if self.loss_fk != 0 or self.loss_fk_vel > 0:
             assert (
                 dataset is not None
             ), "Dataset is required for FK loss (inv transform)"
@@ -311,7 +306,7 @@ class DiffusionModel(CustomBaseGaussianDiffusion):
                     gt_joints,
                     dist_type=self.loss_dist_type,
                     joint_dim=3,
-                ).mean(axis=-1)
+                ).mean(dim=-1)
                 terms[MotionLossType.LOSS] += (
                     terms[MotionLossType.JOINTS_MSE] * self.loss_fk
                 )
@@ -552,29 +547,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
             terms[MotionLossType.LOSS] += (
                 terms[MotionLossType.VEL_MSE] * self.loss_velocity * loss_weights
             )
-        if self.loss_jitter != 0:
-            all_pred_motion = th.cat(
-                [
-                    cond[DataTypeGT.MOTION_CTX][:, :last_ctx_frame],
-                    output[ModelOutputType.RELATIVE_ROTS],
-                ],
-                dim=1,
-            )
-            terms[MotionLossType.JITTER] = loss_jitter(
-                all_pred_motion,
-            )[:, -nframes:]
-            terms[MotionLossType.LOSS] += (
-                terms[MotionLossType.JITTER] * self.loss_jitter * loss_weights
-            )
-        if self.loss_correction != 0:
-            terms[MotionLossType.CORRECTION] = loss_distance(
-                prev_pred,
-                output[ModelOutputType.RELATIVE_ROTS],
-                dist_type=LossDistType.L2,
-            )
-            terms[MotionLossType.LOSS] += (
-                terms[MotionLossType.CORRECTION] * self.loss_correction * loss_weights
-            )
         if self.loss_fk != 0:
             assert (
                 dataset is not None
@@ -607,50 +579,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
                 terms[MotionLossType.LOSS] += (
                     terms[MotionLossType.JOINTS_VEL_MSE]
                     * self.loss_fk_vel
-                    * loss_weights
-                )
-            if self.loss_fk_vel_avg != 0:  # # last frame - first frame
-                vel_total_pred_joints = pred_joints[:, -1:] - pred_joints[:, :1]
-                vel_total_gt_joints = gt_joints[:, -1:] - gt_joints[:, :1]
-                terms[MotionLossType.JOINTS_VEL_AVG_MSE] = loss_distance(
-                    vel_total_pred_joints,
-                    vel_total_gt_joints,
-                    dist_type=self.loss_dist_type,
-                    joint_dim=3,
-                )
-                terms[MotionLossType.LOSS] += (
-                    terms[MotionLossType.JOINTS_VEL_AVG_MSE]
-                    * self.loss_fk_vel_avg
-                    * loss_weights
-                )
-            if self.loss_fk_vel_feet != 0:  # # last frame - first frame
-                FEET_IDCES = [constants.LFOOT_JOINT_IDX, constants.RFOOT_JOINT_IDX]
-                pred_feet = pred_joints.reshape((bs, seq_len, -1, 3))[
-                    :, :, FEET_IDCES
-                ].reshape(bs, seq_len, -1)
-                gt_feet = gt_joints.reshape((bs, seq_len, -1, 3))[
-                    :, :, FEET_IDCES
-                ].reshape(bs, seq_len, -1)
-                vel_total_pred_feet = pred_feet[:, -1:] - pred_feet[:, :1]
-                vel_total_gt_feet = gt_feet[:, -1:] - gt_feet[:, :1]
-                loss_feet_avg_vel = loss_distance(
-                    vel_total_pred_feet,
-                    vel_total_gt_feet,
-                    dist_type=self.loss_dist_type,
-                    joint_dim=3,
-                )
-                loss_feet_vel = loss_velocity(
-                    pred_feet,
-                    gt_feet,
-                    dist_type=self.loss_dist_type,
-                    joint_dim=3,
-                )
-                terms[MotionLossType.JOINTS_VEL_FEET] = (
-                    loss_feet_vel + loss_feet_avg_vel
-                )
-                terms[MotionLossType.LOSS] += (
-                    terms[MotionLossType.JOINTS_VEL_FEET]
-                    * self.loss_fk_vel_feet
                     * loss_weights
                 )
 

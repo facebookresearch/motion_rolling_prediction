@@ -130,12 +130,8 @@ def create_gaussian_diffusion(args):
             mask_cond_fn=mask_cond_fn,
             loss_dist_type=args.loss_dist_type,
             loss_velocity=args.loss_velocity,
-            loss_jitter=args.loss_jitter,
-            loss_correction=args.loss_correction,
             loss_fk=args.loss_fk,
             loss_fk_vel=args.loss_fk_vel,
-            loss_fk_vel_avg=args.loss_fk_vel_avg,
-            loss_fk_vel_feet=args.loss_fk_vel_feet,
             support_dir=args.support_dir,
         )
     elif args.diffusion_type == DiffusionType.STANDARD:

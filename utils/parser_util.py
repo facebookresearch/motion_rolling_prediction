@@ -144,18 +144,6 @@ def add_diffusion_options(parser):
         help="Weighting of the velocity loss.",
     )
     group.add_argument(
-        "--loss_jitter",
-        default=0.0,
-        type=float,
-        help="Weighting of the prediction jitter loss.",
-    )
-    group.add_argument(
-        "--loss_correction",
-        default=0.0,
-        type=float,
-        help="Weighting of the correction loss.",
-    )
-    group.add_argument(
         "--loss_fk",
         default=0.0,
         type=float,
@@ -166,18 +154,6 @@ def add_diffusion_options(parser):
         default=0.0,
         type=float,
         help="Weighting of the loss applied to the velocity of the joints.",
-    )
-    group.add_argument(
-        "--loss_fk_vel_avg",
-        default=0.0,
-        type=float,
-        help="Weighting of the loss applied to the average velocity in the whole prediction window.",
-    )
-    group.add_argument(
-        "--loss_fk_vel_feet",
-        default=0.0,
-        type=float,
-        help="Weighting of the loss applied to the average velocity in the whole prediction window.",
     )
 
 
