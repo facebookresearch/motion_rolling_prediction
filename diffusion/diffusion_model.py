@@ -332,28 +332,11 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
         self.sparse_cxt_len = kwargs.get("rolling_sparse_ctx", 10)
         self.lat = kwargs.get("rolling_latency", 0)
         self.max_freerunning_steps = kwargs.get("rolling_fr_frames", 0)
-        self.freerunning_jump = kwargs.get("rolling_fr_jump", FreeRunningJumpType.NONE)
         self.ctx_perturbation = kwargs.get("ctx_perturbation", 0.0)
         self.sp_perturbation = kwargs.get("sp_perturbation", 0.0)
         self.mask_cond_fn = kwargs.get("mask_cond_fn", None)
         self.target_type = kwargs.get("target_type", PredictionTargetType.POSITIONS)
         self.clamp_noise = kwargs.get("clamp_noise", False)
-
-    def get_freerunning_jump(self, max_frames):
-        if self.freerunning_jump == FreeRunningJumpType.NONE:
-            # no jump (just go to the next frame)
-            return 1
-        elif self.freerunning_jump == FreeRunningJumpType.UNIFORM:
-            # random jump between 1 and max_frames following a uniform distribution
-            return th.randint(1, max_frames, (1,))[0].item()
-        elif self.freerunning_jump == FreeRunningJumpType.EXPONENTIAL:
-            # random jump between 1 and max_frames following an exponential distribution with P(x<max_frames) = 0.999
-            LN_PROB = 6.9077552789  # result of -ln(1-0.999)
-            lambda_ = th.tensor(LN_PROB / max_frames)
-            sampled = Exponential(lambda_, (1,)).sample()
-            return min(max(1, sampled.ceil().int().item()), max_frames)
-        else:
-            raise NotImplementedError
 
     def perturb_context(self, context):
         if self.ctx_perturbation > 0.0:
@@ -437,9 +420,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
                 self.freerunning_step(
                     model, i, x_start, cond, t_, model_kwargs, update_context=True
                 )
-                # increase i
-                i += self.get_freerunning_jump(nframes)
-                i = min(i, no_grad_steps)  # can jump up to no_grad_steps
+                i += 1 # increase i
         model.train()
         # GRAD stage
         while i < no_grad_steps + grad_steps:
@@ -453,15 +434,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
                 model_kwargs,
                 update_context=update,
             )
-
-            # increase i
-            if i == no_grad_steps + grad_steps - 1:
-                i += 1
-            else:
-                # skip random frames from 1 to nframes, but can't go beyond no_grad_steps + grad_steps - 1
-                # the -1 is to make sure the last denoising only does a step of size 1.
-                i += self.get_freerunning_jump(nframes)
-                i = min(i, no_grad_steps + grad_steps - 1)
+            i += 1
 
         last_ctx_frame = i - 1 + self.motion_cxt_len
         prev_pred = x_start[:, i - 1 : i - 1 + nframes]

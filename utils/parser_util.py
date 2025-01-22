@@ -230,12 +230,6 @@ def add_model_options(parser):
         help="num of max iterations of free running to be done",
     )
     group.add_argument(
-        "--rolling_fr_jump",
-        default=FreeRunningJumpType.NONE,
-        type=FreeRunningJumpType,
-        help="jump randomly during the Free Running process",
-    )
-    group.add_argument(
         "--rolling_latency",
         default=0,
         type=int,
