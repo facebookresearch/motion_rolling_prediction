@@ -61,43 +61,21 @@ class ModelWrapper(nn.Module):
     def transform_model_output(self, model_output, cond, t, x_start=None):
         """
         The model_output is the clean motion. This method implements several transformations in the output of the
-        model, depending on the target_type. Options:
-        - POSITIONS: the model output is the clean motion (standard diffusion)
-        - POSITIONS_SNR: the model output is capped by how much the motion can change in the current timestep. The
-        earlier in the diffusion process, the more the model can change the motion. The rate of change is defined by
-        the SNR of the noise at the current timestep.
-        - POSITIONS_SIGMA: same as POSITIONS_SNR, but the rate of change is defined by the sigma of the noise.
-        - POSITIONS_SIGMA2: same as POSITIONS_SNR, but the rate of change is defined by twice the sigma of the noise.
-        - POSITIONS_CONST: same as POSITIONS_SIGMA, but sigma is 1 for all timesteps.
-        - REL_OFFSETS: the model output becomes the relative offset from the previous denoised pose.
-        - ABS_OFFSETS: the model output becomes the absolute offset from the last context pose.
+        model, depending on the target_type.
         """
         if self.target_type == PredictionTargetType.POSITIONS:
             return model_output
         elif (
-            self.target_type == PredictionTargetType.POSITIONS_SIGMA
-            or self.target_type == PredictionTargetType.POSITIONS_SIGMA2
-            or self.target_type == PredictionTargetType.PCAF_COSINE
+            self.target_type == PredictionTargetType.PCAF_COSINE
             or self.target_type == PredictionTargetType.PCAF_COSINE_SQ
             or self.target_type == PredictionTargetType.PCAF_LINEAR
         ):
-            assert x_start is not None, "x_start is required for POSITIONS_SIGMA"
-            if (
-                self.target_type == PredictionTargetType.POSITIONS_SIGMA
-                or self.target_type == PredictionTargetType.POSITIONS_SIGMA2
-            ):
-                std = self.diffusion.get_sigma_from_t(t, t.shape)
-                if self.target_type == PredictionTargetType.POSITIONS_SIGMA2:
-                    std = 2 * std
-            else:
-                uncertainty = ALL_FUNCTIONS[self.target_type](
-                    self.diffusion.num_timesteps
-                )
-                std = _extract_into_tensor(np.array(uncertainty), t, t.shape)
-            return x_start + std.unsqueeze(-1) * th.tanh(model_output - x_start)
-        elif self.target_type == PredictionTargetType.POSITIONS_CONST:
-            assert x_start is not None, "x_start is required for POSITIONS_CONST"
-            return x_start + th.tanh(model_output - x_start)
+            assert x_start is not None, "x_start is required for PCAF reparameterization"
+            uncertainty = ALL_FUNCTIONS[self.target_type](
+                self.diffusion.num_timesteps
+            )
+            u = _extract_into_tensor(np.array(uncertainty), t, t.shape)
+            return x_start + u.unsqueeze(-1) * th.tanh(model_output - x_start)
         else:
             raise NotImplementedError
 

@@ -116,16 +116,6 @@ class RollingVisType(str, Enum):
 
 class PredictionTargetType(str, Enum):
     POSITIONS = "positions"  # the model output is returned as is
-    POSITIONS_SNR = (
-        "positions_snr"  # the output of tanh is scaled by the SNR (alpha / sigma)
-    )
-    POSITIONS_SIGMA = "positions_sigma"  # the output of tanh is scaled by sigma
-    POSITIONS_SIGMA2 = (
-        "positions_sigma2"  # the output of tanh is scaled by 2*sigma instead of sigma
-    )
-    POSITIONS_CONST = "positions_const"
-    REL_OFFSETS = "rel_offsets"
-    ABS_OFFSETS = "abs_offsets"
     PCAF_COSINE = "pcaf_cosine"
     PCAF_COSINE_SQ = "pcaf_cosine_sq"
     PCAF_LINEAR = "pcaf_linear"
