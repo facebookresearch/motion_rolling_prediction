@@ -124,12 +124,7 @@ class PredictionTargetType(str, Enum):
 class PredictionInputType(str, Enum):
     CLEAN = "clean"  # the input of the model is the previous prediction
     NOISY = "noisy"  # the input of the model is the noisy previous prediction
-    NONE = (
-        "none"  # the input of the model is no information about the previous prediction
-    )
-    LAST_GENERATED = (
-        "last_generated"  # the input of the model is the last generated pose
-    )
+    NONE = "none"  # the input of the model does NOT include the previous prediction
 
 
 ENTITIES_IDCES = {

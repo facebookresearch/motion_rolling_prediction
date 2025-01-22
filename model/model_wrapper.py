@@ -6,7 +6,6 @@ import torch as th
 import torch.nn as nn
 from diffusion.gaussian_diffusion import _extract_into_tensor, GaussianDiffusion
 from utils.constants import (
-    DataTypeGT,
     ModelOutputType,
     PredictionInputType,
     PredictionTargetType,
@@ -88,11 +87,13 @@ class ModelWrapper(nn.Module):
         """
         if self.prediction_input_type == PredictionInputType.NONE:
             x = th.zeros_like(x)
-        elif self.prediction_input_type == PredictionInputType.LAST_GENERATED:
-            last_gen_pose = cond[DataTypeGT.MOTION_CTX][:, -1:]
-            x = last_gen_pose.repeat(1, x.shape[1], 1)
         elif self.prediction_input_type == PredictionInputType.CLEAN:
+            assert x_start is not None, "x_start is required for clean input"
             x = x_start.float()
+        elif self.prediction_input_type == PredictionInputType.NOISY:
+            pass # nothing to do, as x is already the noisy input
+        else:
+            raise NotImplementedError
 
         model_output = self.model(x, t, cond, **kwargs)
         assert isinstance(model_output, dict), "model output must be a dict"

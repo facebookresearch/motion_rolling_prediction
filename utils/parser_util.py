@@ -14,7 +14,6 @@ from utils.constants import (
     ConditionMasker,
     DatasetType,
     DiffusionType,
-    FreeRunningJumpType,
     LossDistType,
     NoiseScheduleType,
     PredictionInputType,
@@ -186,11 +185,11 @@ def add_model_options(parser):
         "--target_type",
         default=PredictionTargetType.POSITIONS,
         type=PredictionTargetType,
-        help="target type (position, relative offset, absolute offset)",
+        help="target type (position, pcaf_cosine, pcaf_cosinesq, pcaf_linear)",
     )
     group.add_argument(
         "--prediction_input_type",
-        default=PredictionInputType.NOISY,
+        default=PredictionInputType.NONE,
         type=PredictionInputType,
         help="type of previous prediction fed into the network (noisy, clean, none)",
     )
