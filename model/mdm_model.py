@@ -2,8 +2,25 @@ import numpy as np
 import torch
 import torch.nn as nn
 import utils.constants as Constants
-from model.meta_model import TimestepEmbeding
 from utils.constants import DataTypeGT, ModelOutputType
+
+
+class TimestepEmbeding(nn.Module):
+    def __init__(self, d_model, max_len=5000):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float() * (-np.log(10000.0) / d_model)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+
+        self.register_buffer("pe", pe)
+
+    def forward(self, timesteps):
+        return self.pe[timesteps]
 
 
 def inverted_mask(size, dev):
@@ -57,7 +74,6 @@ class RollingMDM(nn.Module):
 
     def __init__(
         self,
-        arch,
         nfeats,
         mask_cond_fn,
         latent_dim=256,
@@ -237,238 +253,6 @@ class RollingMDM(nn.Module):
             out_dict[ModelOutputType.SHAPE_PARAMS] = None
         return out_dict
 
-
-class StandardMDM(nn.Module):
-    """
-    Based on original MDM code: https://github.com/GuyTevet/motion-diffusion-model/blob/main/model/mdm.py
-    + 1 layer of cross attention for attending to sparse features
-    """
-
-    def __init__(
-        self,
-        arch,
-        nfeats,
-        mask_cond_fn,
-        latent_dim=256,
-        ff_size=1024,
-        num_layers=8,
-        num_heads=4,
-        dropout=0.1,
-        dropout_framewise=0.0,
-        dataset="amass",
-        activation="gelu",
-        sparse_dim=54,
-        **kargs,
-    ):
-        super().__init__()
-
-        self.nfeats = nfeats
-        self.dataset = dataset
-
-        self.latent_dim = latent_dim
-        self.ff_size = ff_size
-        self.num_layers = num_layers
-        self.num_heads = num_heads
-        self.dropout = dropout
-        self.framedropout = FrameDropout(dropout_framewise)
-        self.sparse_dim = sparse_dim
-
-        self.total_seq_len = kargs.get("input_motion_length")
-
-        self.activation = activation
-
-        self.mask_cond_fn = mask_cond_fn
-
-        self.sequence_pos_encoder = PositionalEncoding(self.latent_dim, self.dropout)
-        self.embed_timestep = TimestepEmbeding(self.latent_dim)
-
-        self.sparse_process = InputProcess(self.sparse_dim, self.latent_dim)
-        self.xatt = nn.MultiheadAttention(
-            embed_dim=self.latent_dim, num_heads=self.num_heads
-        )
-        self.xatt_norm = nn.LayerNorm(self.latent_dim)
-        self.xatt_ff = nn.Linear(self.latent_dim, self.latent_dim)
-
-        self.input_process = InputProcess(self.nfeats, self.latent_dim)
-
-        seqTransEncoderLayer = nn.TransformerEncoderLayer(
-            d_model=self.latent_dim,
-            nhead=self.num_heads,
-            dim_feedforward=self.ff_size,
-            dropout=self.dropout,
-            activation=self.activation,
-        )
-
-        self.seqTransEncoder = nn.TransformerEncoder(
-            seqTransEncoderLayer, num_layers=self.num_layers
-        )
-
-        self.output_process = OutputProcess(self.nfeats, self.latent_dim)
-
-    def forward(
-        self, x, timesteps, cond, force_mask=False, y=None, padding_mask=None, **kwargs
-    ):
-        """
-        x: [batch_size, nframes, nfeats], denoted x_t in the paper
-        sparse: [batch_size, nframes, sparse_dim], the sparse features
-        timesteps: [batch_size, ] (int)
-        """
-        bs, sl, nfeats = x.shape
-        sparse_emb = cond[DataTypeGT.SPARSE]
-
-        sparse_emb = self.mask_cond_fn(sparse_emb, self.training, force_mask=force_mask)
-        timestep_emb = self.embed_timestep(timesteps).transpose(0, 1)  # [seqlen, bs, d]
-
-        xseq = self.input_process(x)  # --> [seqlen, bs, d]
-        xseq = torch.cat([xseq, timestep_emb], dim=0)  # concat as an extra frame
-        xseq = self.framedropout(xseq)
-        # adding the positional embedding
-        xseq = self.sequence_pos_encoder(xseq)  # [seqlen, bs, d]
-
-        sparse_emb = self.sparse_process(sparse_emb)
-        sparse_emb = self.sequence_pos_encoder(sparse_emb)
-        xseq_xatt = self.xatt(
-            xseq,
-            sparse_emb,
-            sparse_emb,
-        )[0]
-        xseq = self.xatt_norm(xseq_xatt + xseq)
-
-        output = self.seqTransEncoder(xseq)  # [seqlen, bs, d]
-        output = self.output_process(output)  # --> [bs, seqlen, nfeats]
-        # drop the timestep embedding extra frame
-        return {
-            ModelOutputType.RELATIVE_ROTS: output[:, 1:],
-            ModelOutputType.SHAPE_PARAMS: None,
-        }
-
-
-class RollingTransformer(nn.Module):
-    def __init__(
-        self,
-        arch,
-        nfeats,
-        mask_cond_fn,
-        latent_dim=256,
-        ff_size=1024,
-        num_layers=8,
-        num_layers_cond=1,
-        num_heads=4,
-        dropout=0.1,
-        dropout_framewise=0.0,
-        dataset="amass",
-        activation="gelu",
-        sparse_dim=54,
-        **kargs,
-    ):
-        super().__init__()
-
-        self.dataset = dataset
-
-        self.total_seq_len = kargs.get("input_motion_length")
-        self.mask_cond_fn = mask_cond_fn
-
-        self.framedropout = FrameDropout(dropout_framewise)
-        self.sequence_pos_encoder = PositionalEncoding(latent_dim, dropout)
-
-        time_strategy = kargs.get("time_emb_strategy", "concat")
-        self.inject_timestep = TimeEmbLayer(latent_dim, time_strategy)
-        self.input_process = InputProcess(nfeats, latent_dim)
-        self.ctx_process = InputProcess(nfeats, latent_dim)
-        self.sparse_process = InputProcess(sparse_dim, latent_dim)
-
-        self.transformer = nn.Transformer(
-            d_model=latent_dim,
-            nhead=num_heads,
-            num_encoder_layers=num_layers_cond,
-            num_decoder_layers=num_layers,
-            dim_feedforward=ff_size,
-            dropout=dropout,
-            activation=activation,
-        )
-
-        self.output_process = OutputProcess(nfeats, latent_dim)
-
-        self.lookahead = kargs.get("lookahead", False)
-        self.inv_mask = None
-        if self.lookahead:
-            # True are ignored, False are attended
-            self.inv_mask = inverted_mask(self.total_seq_len, "cpu")
-
-    def forward(
-        self, x, timesteps, cond, force_mask=False, y=None, padding_mask=None, **kwargs
-    ):
-        """
-        x: [batch_size, nframes, nfeats], denoted x_t in the paper
-        sparse: [batch_size, nframes, sparse_dim], the sparse features
-        motion_ctx: [batch_size, nframes, nfeats], the contextual information
-        timesteps: [batch_size, nframes] (int)
-        """
-        bs, sl, nfeats = x.shape
-        sparse_emb = cond[DataTypeGT.SPARSE]
-        motion_ctx = cond[DataTypeGT.MOTION_CTX]
-
-        # concat motion_ctx with sparse_emb
-        sparse_emb = self.mask_cond_fn(sparse_emb, self.training, force_mask=force_mask)
-        sparse_emb = self.sparse_process(sparse_emb)  # --> [ctxlen + 1, bs, d]
-        ctx_emb = self.ctx_process(motion_ctx)  # --> [ctxlen, bs, d]
-        cond_seq = torch.cat(
-            [ctx_emb, sparse_emb], dim=0
-        )  # --> [2 * ctxlen + 1, bs, d]
-        cond_seq = self.sequence_pos_encoder(cond_seq)  # [seqlen, bs, d]
-
-        pred = self.input_process(x)  # --> [seqlen, bs, d]
-        pred = self.inject_timestep(
-            pred, timesteps.permute((1, 0))
-        )  # --> [seqlen, bs, d]
-        pred = self.framedropout(pred)
-
-        # adding the positional embed
-        pred = self.sequence_pos_encoder(pred)  # [seqlen, bs, d]
-
-        output = self.transformer(
-            cond_seq,
-            pred,
-            tgt_mask=self.inv_mask.to(pred.device) if self.lookahead else None,
-            # tgt_key_padding_mask=padding_mask, #TODO fix this (T198081505). It should work with the key padding mask. Otherwise we are adding "noise" to the self-att.
-        )  # [seqlen, bs, d]
-
-        output = self.output_process(output)  # --> [bs, seqlen, nfeats]
-        return {
-            ModelOutputType.RELATIVE_ROTS: output,
-            ModelOutputType.SHAPE_PARAMS: None,
-        }
-
-
-class TimeEmbLayer(nn.Module):
-    def __init__(self, d_model, mode="concat"):
-        super(TimeEmbLayer, self).__init__()
-        self.embed_timestep = TimestepEmbeding(d_model)
-        self.mode = mode
-        if mode == "concat":
-            self.ff = nn.Linear(d_model * 2, d_model)
-        elif mode == "norm":
-            self.time_ff = nn.Linear(d_model, 2 * d_model)
-        elif mode not in ["add", "none"]:
-            raise NotImplementedError
-
-    def forward(self, x, timesteps):
-        # x: [nframes, bs, nfeats]
-        # timesteps: [nframes, bs]
-        nframes, bs = x.shape[:2]
-        timestep_emb = self.embed_timestep(timesteps.reshape(-1))
-        timestep_emb = timestep_emb.squeeze().reshape(nframes, bs, -1)
-        if self.mode == "concat":
-            x = torch.cat([x, timestep_emb], dim=2)
-            return self.ff(x)
-        elif self.mode == "add":
-            return x + timestep_emb
-        elif self.mode == "norm":
-            mu, sigma = self.time_ff(timestep_emb).chunk(2, dim=2)
-            return x * torch.exp(sigma) + mu
-        elif self.mode == "none":
-            return x
-        raise NotImplementedError
 
 
 class PositionalEncoding(nn.Module):

@@ -184,13 +184,6 @@ def add_diffusion_options(parser):
 def add_model_options(parser):
     group = parser.add_argument_group("model")
     group.add_argument(
-        "--arch",
-        choices=["DiffMLP", "MDM", "Transformer"],
-        default="DiffMLP",
-        type=str,
-        help="Architecture types as reported in the paper.",
-    )
-    group.add_argument(
         "--diffusion_type",
         default=DiffusionType.STANDARD,
         type=DiffusionType,

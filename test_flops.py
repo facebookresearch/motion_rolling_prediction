@@ -10,7 +10,7 @@ from fvcore.nn import flop_count_table, FlopCountAnalysis
 from loguru import logger
 from utils.constants import DataTypeGT
 
-from utils.model_util import create_model_and_diffusion, get_model_class
+from utils.model_util import create_model_and_diffusion
 from utils.parser_util import train_args
 
 
@@ -22,11 +22,7 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    model_cls = get_model_class(args)
-    model, diffusion = create_model_and_diffusion(
-        args,
-        model_cls=model_cls,
-    )
+    model, diffusion = create_model_and_diffusion(args)
 
     device = "cuda" if not args.cpu else "cpu"
     model.to(device)

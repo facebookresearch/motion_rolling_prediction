@@ -19,22 +19,17 @@ from runner.training_loop import TrainLoop
 from utils import dist_util
 
 from utils.constants import DiffusionType
-from utils.model_util import create_model_and_diffusion, get_model_class
+from utils.model_util import create_model_and_diffusion
 from utils.parser_util import train_args
 
 
 def train_diffusion_model(args, dataloader, device="cuda"):
     logger.info("creating model and diffusion...")
-    # args.arch = args.arch[len("diffusion_") :]
 
     num_gpus = torch.cuda.device_count() if device != "cpu" else 1
     args.num_workers = args.num_workers * num_gpus
 
-    model_cls = get_model_class(args)
-    model, diffusion = create_model_and_diffusion(
-        args,
-        model_cls=model_cls,
-    )
+    model, diffusion = create_model_and_diffusion(args)
 
     if num_gpus > 1 and device != "cpu":
         logger.info("Let's use", torch.cuda.device_count(), "GPUs!")
