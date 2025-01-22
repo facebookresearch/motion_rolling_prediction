@@ -49,9 +49,6 @@ def create_model_and_rpm(args):
 def get_model_args(args):
     return {
         "nfeats": args.motion_nfeat,
-        "mask_cond_fn": create_masker(
-            args.masker, args.dataset, 0.0
-        ),
         "latent_dim": args.latent_dim,
         "sparse_dim": args.sparse_dim,
         "num_layers": args.layers,

@@ -75,7 +75,6 @@ class RollingMDM(nn.Module):
     def __init__(
         self,
         nfeats,
-        mask_cond_fn,
         latent_dim=256,
         ff_size=1024,
         num_layers=8,
@@ -105,8 +104,6 @@ class RollingMDM(nn.Module):
         self.total_seq_len = kargs.get("input_motion_length") + self.rolling_motion_ctx
 
         self.activation = activation
-
-        self.mask_cond_fn = mask_cond_fn
 
         self.sequence_pos_encoder = PositionalEncoding(self.latent_dim, self.dropout)
         self.lookahead = kargs.get("lookahead", False)
@@ -185,7 +182,6 @@ class RollingMDM(nn.Module):
         # concat motion ctx with motion
         x = torch.cat([motion_ctx, x], dim=1)
 
-        sparse_emb = self.mask_cond_fn(sparse_emb, self.training, force_mask=force_mask)
         if self.cond == "concat":
             # expand sparse with 0's to match self.total_seq_len
             padding = torch.zeros(
