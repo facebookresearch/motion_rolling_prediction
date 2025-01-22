@@ -222,7 +222,6 @@ class TrainLoop:
             t,
             cond,
             dataset=self.data.dataset,
-            model_kwargs={"padding_mask": sched.padding_mask},
         )
 
         losses = compute_losses()

@@ -167,7 +167,7 @@ class RollingMDM(nn.Module):
             )
 
     def forward(
-        self, x, timesteps, cond, force_mask=False, y=None, padding_mask=None, **kwargs
+        self, x, timesteps, cond, **kwargs
     ):
         """
         x: [batch_size, nframes, nfeats], denoted x_t in the paper
@@ -225,17 +225,9 @@ class RollingMDM(nn.Module):
             )[0]
             xseq = self.xatt_norm(xseq_xatt + xseq)
 
-        if padding_mask is not None and self.rolling_motion_ctx > 0:
-            t_padding = torch.zeros(
-                (bs, self.rolling_motion_ctx),
-                device=padding_mask.device,
-            )
-            padding_mask = torch.cat([t_padding, padding_mask], dim=1)
-
         output_feats = self.seqTransEncoder(
             xseq,
             mask=self.inv_mask.to(xseq.device) if self.inv_mask is not None else None,
-            src_key_padding_mask=padding_mask,
         )  # [seqlen, bs, d]
 
         output = self.output_process(output_feats)  # --> [bs, seqlen, nfeats]

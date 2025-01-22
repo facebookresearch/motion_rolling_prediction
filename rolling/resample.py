@@ -16,7 +16,6 @@ from typing import Optional
 class NoiseScheduleData:
     timesteps: th.Tensor
     weights: th.Tensor
-    padding_mask: Optional[th.Tensor]
 
 
 class ScheduleSampler(ABC):
@@ -47,7 +46,6 @@ class ScheduleSampler(ABC):
         :return: a tuple (timesteps, weights):
                  - timesteps: a tensor of timestep indices.
                  - weights: a tensor of weights to scale the resulting losses.
-                 - padding_mask: a padding mask with 1's indicating frames that are part of the padding. None if no padding.
         """
         w = self.weights()
         p = w / np.sum(w)
@@ -55,7 +53,7 @@ class ScheduleSampler(ABC):
         indices = th.from_numpy(indices_np).long().to(device)
         weights_np = 1 / (len(p) * p[indices_np])
         weights = th.from_numpy(weights_np).float().to(device)
-        return NoiseScheduleData(indices, weights, None)
+        return NoiseScheduleData(indices, weights)
 
 
 class UniformSampler(ScheduleSampler):
@@ -86,7 +84,7 @@ class RollingSampler(UniformSampler):
         indices = indices.unsqueeze(0).repeat((batch_size, 1))
         weights = th.ones_like(indices)
 
-        return NoiseScheduleData(indices.to(device), weights.to(device), None)
+        return NoiseScheduleData(indices.to(device), weights.to(device))
 
 
 
