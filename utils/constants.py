@@ -20,9 +20,8 @@ INPUT_RHAND_IDCES = (42, 43, 44)
 
 class DatasetType(str, Enum):
     DEFAULT = "default"
-    AMASS = "amass_p1"
-    AMASSFULL = "amass_p2"
-    ITW = "itw"
+    AMASS_P1 = "amass_p1"
+    AMASS_P2 = "amass_p2"
     GORP = "gorp"
 
 
@@ -99,7 +98,7 @@ class PredictionInputType(str, Enum):
 
 
 ENTITIES_IDCES = {
-    DatasetType.AMASS: (
+    DatasetType.AMASS_P1: (
         (
             0,
             1,
@@ -162,12 +161,11 @@ ENTITIES_IDCES = {
         ),  # right hand rot 6d, rot vel 6d, trans 3d, trans vel 3d
     ),
 }
-ENTITIES_IDCES[DatasetType.AMASSFULL] = ENTITIES_IDCES[DatasetType.AMASS]
-ENTITIES_IDCES[DatasetType.GORP] = ENTITIES_IDCES[DatasetType.AMASS]
-ENTITIES_IDCES[DatasetType.ITW] = ENTITIES_IDCES[DatasetType.AMASS]
+ENTITIES_IDCES[DatasetType.AMASS_P2] = ENTITIES_IDCES[DatasetType.AMASS_P1]
+ENTITIES_IDCES[DatasetType.GORP] = ENTITIES_IDCES[DatasetType.AMASS_P1]
 
 TRACKING_IDCES_TO_EXPORT_POS = {
-    DatasetType.AMASS: (
+    DatasetType.AMASS_P1: (
         (
             36,
             37,
@@ -185,15 +183,12 @@ TRACKING_IDCES_TO_EXPORT_POS = {
         ),  # right hand position
     ),
 }
-TRACKING_IDCES_TO_EXPORT_POS[DatasetType.AMASSFULL] = TRACKING_IDCES_TO_EXPORT_POS[
-    DatasetType.AMASS
-]
-TRACKING_IDCES_TO_EXPORT_POS[DatasetType.ITW] = TRACKING_IDCES_TO_EXPORT_POS[
-    DatasetType.AMASS
+TRACKING_IDCES_TO_EXPORT_POS[DatasetType.AMASS_P2] = TRACKING_IDCES_TO_EXPORT_POS[
+    DatasetType.AMASS_P1
 ]
 
 TRACKING_IDCES_TO_EXPORT_ROT = {
-    DatasetType.AMASS: (
+    DatasetType.AMASS_P1: (
         (
             0,
             1,
@@ -220,20 +215,16 @@ TRACKING_IDCES_TO_EXPORT_ROT = {
         ),  # right hand 6d rot
     ),
 }
-TRACKING_IDCES_TO_EXPORT_ROT[DatasetType.AMASSFULL] = TRACKING_IDCES_TO_EXPORT_ROT[
-    DatasetType.AMASS
-]
-TRACKING_IDCES_TO_EXPORT_ROT[DatasetType.ITW] = TRACKING_IDCES_TO_EXPORT_ROT[
-    DatasetType.AMASS
+TRACKING_IDCES_TO_EXPORT_ROT[DatasetType.AMASS_P2] = TRACKING_IDCES_TO_EXPORT_ROT[
+    DatasetType.AMASS_P1
 ]
 
 
 ENTITIES_SMPL_IDCES = {
-    DatasetType.AMASS: ((15,), (20,), (21,)),  # head, left hand, right hand
+    DatasetType.AMASS_P1: ((15,), (20,), (21,)),  # head, left hand, right hand
 }
-ENTITIES_SMPL_IDCES[DatasetType.AMASSFULL] = ENTITIES_SMPL_IDCES[DatasetType.AMASS]
-ENTITIES_SMPL_IDCES[DatasetType.GORP] = ENTITIES_SMPL_IDCES[DatasetType.AMASS]
-ENTITIES_SMPL_IDCES[DatasetType.ITW] = ENTITIES_SMPL_IDCES[DatasetType.AMASS]
+ENTITIES_SMPL_IDCES[DatasetType.AMASS_P2] = ENTITIES_SMPL_IDCES[DatasetType.AMASS_P1]
+ENTITIES_SMPL_IDCES[DatasetType.GORP] = ENTITIES_SMPL_IDCES[DatasetType.AMASS_P1]
 
 
 class ConditionMasker(str, Enum):

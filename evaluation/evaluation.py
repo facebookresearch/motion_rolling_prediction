@@ -255,7 +255,6 @@ class EvaluatorWrapper:
                 head_motion = gt_dict[DataTypeGT.HEAD_MOTION]
                 gaps = gt_dict[DataTypeGT.TRACKING_GAP]
                 num_frames = gt_dict[DataTypeGT.NUM_FRAMES]
-                print(num_frames)
                 filenames = gt_dict[DataTypeGT.FILENAME]
                 gt_genders = gt_dict[DataTypeGT.SMPL_GENDER]
                 model_types = gt_dict[DataTypeGT.SMPL_MODEL_TYPE]

@@ -87,7 +87,7 @@ def run():
     )
     parser.add_argument(
         "--dataset",
-        default=DatasetType.AMASS,
+        default=DatasetType.AMASS_P1,
         type=DatasetType,
         help="Dataset name.",
     )

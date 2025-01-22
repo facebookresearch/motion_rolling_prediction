@@ -36,7 +36,7 @@ from pathlib import Path
 
 
 VIS_SAMPLES_SUBSET = {
-    DatasetType.AMASS: [
+    DatasetType.AMASS_P1: [
         "BioMotionLab_NTroje-110",
         "BioMotionLab_NTroje-58",
         "BioMotionLab_NTroje-13",
@@ -52,7 +52,7 @@ VIS_SAMPLES_SUBSET = {
         "BioMotionLab_NTroje-299",
         "BioMotionLab_NTroje-291",
     ],
-    DatasetType.AMASSFULL: [
+    DatasetType.AMASS_P2: [
         "Transitions_mocap-17",
         "Transitions_mocap-20",
         "Transitions_mocap-54",
@@ -70,24 +70,6 @@ VIS_SAMPLES_SUBSET = {
         "GORP-200",
         "GORP-250",
         "GORP-300",
-    ],
-    DatasetType.ITW: [
-        "motion_controllers-1",
-        # "motion_controllers-2",
-        # "motion_controllers-3",
-        # "motion_controllers-4",
-        # "motion_controllers-5",
-        # "motion_controllers-6",
-        "hand_tracking-1",
-        "hand_tracking-2",
-        "hand_tracking-3",
-        "hand_tracking-4",
-        "hand_tracking-5",
-        "hand_tracking-6",
-        "hand_tracking-7",
-        "hand_tracking-8",
-        "hand_tracking-9",
-        "hand_tracking-10",
     ],
 }
 
@@ -203,7 +185,7 @@ class VisualizerWrapper:
 
         # lazy import because we need other dependencies first (bootstrap)
         from utils import utils_visualize
-        dst_path = output_dir / save_filename + ".mp4"
+        dst_path = output_dir / (save_filename + ".mp4")
         utils_visualize.save_animation(
             body_pose=body_pose,
             savepath=dst_path,
@@ -503,7 +485,7 @@ class VisualizerWrapper:
         body_param = gt_dict[DataTypeGT.BODY_PARAMS]
         smpl_gender = gt_dict[DataTypeGT.SMPL_GENDER]
         smpl_model = gt_dict[DataTypeGT.SMPL_MODEL_TYPE]
-        store_path = output_dir / filename + "_gt.mp4"
+        store_path = output_dir / (filename + "_gt.mp4")
         if not overwrite and store_path.exists():
             logger.info(f"Visualization already exists for {filename}. Skipping...")
             return

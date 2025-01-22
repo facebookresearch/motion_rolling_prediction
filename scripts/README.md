@@ -62,6 +62,9 @@ To generate examples of human motion compositions with HumanML3D model run:
 ...
 ```
 
+> [!WARNING]
+> Comment all `os.environ['PYOPENGL_PLATFORM'] = "egl"` in the project if you get the `ImportError: ('Unable to load EGL library', "Could not find module 'EGL' (or one of its dependencies). Try using the full path with constructor syntax.", 'EGL', None)` error.
+
 
 ### Render SMPL meshes in Unity
 

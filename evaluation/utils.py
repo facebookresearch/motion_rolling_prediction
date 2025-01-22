@@ -13,9 +13,8 @@ from utils import utils_transform
 from utils.constants import DatasetType, SMPLGenderParam, SMPLModelType
 
 DATASETS_FPS = {
-    DatasetType.AMASS: 60,
-    DatasetType.AMASSFULL: 30,
-    DatasetType.ITW: 30,
+    DatasetType.AMASS_P1: 60,
+    DatasetType.AMASS_P2: 30,
     DatasetType.GORP: 30,
 }
 

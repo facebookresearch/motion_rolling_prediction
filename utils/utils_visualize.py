@@ -23,9 +23,9 @@ from trimesh.primitives import Sphere
 from trimesh.visual.color import ColorVisuals
 
 
-os.environ["PYOPENGL_PLATFORM"] = "egl"
+#os.environ["PYOPENGL_PLATFORM"] = "egl"
 HEIGHT_OFFSET = 0.5  # meters
-CAMERA_DIST = 2  # meters
+CAMERA_DIST = 3  # meters
 UP_DEFAULT = np.array([0.0, 1.0, 0.0])
 
 AX_LENGTH = 0.15
