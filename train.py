@@ -11,25 +11,23 @@ from data_loaders.dataloader import (
     get_dataloader,
     load_data,
     OnlineTrainDataset,
-    TrainDataset,
 )
 from loguru import logger
 from runner.training_loop import TrainLoop
 
 from utils import dist_util
 
-from utils.constants import DiffusionType
-from utils.model_util import create_model_and_diffusion
+from utils.model_util import create_model_and_rpm
 from utils.parser_util import train_args
 
 
-def train_diffusion_model(args, dataloader, device="cuda"):
-    logger.info("creating model and diffusion...")
+def train_rpm(args, dataloader, device="cuda"):
+    logger.info("creating model and rolling...")
 
     num_gpus = torch.cuda.device_count() if device != "cpu" else 1
     args.num_workers = args.num_workers * num_gpus
 
-    model, diffusion = create_model_and_diffusion(args)
+    model, rpm = create_model_and_rpm(args)
 
     if num_gpus > 1 and device != "cpu":
         logger.info("Let's use", torch.cuda.device_count(), "GPUs!")
@@ -48,7 +46,7 @@ def train_diffusion_model(args, dataloader, device="cuda"):
         )
 
     logger.info("Loading training dependencies...")
-    trainer = TrainLoop(args, model, diffusion, dataloader, device=device)
+    trainer = TrainLoop(args, model, rpm, dataloader, device=device)
     logger.info("Training:")
     trainer.run_loop()
     logger.info("Done.")
@@ -93,12 +91,7 @@ def main():
         + args.rolling_fr_frames,
         max_samples=args.dataset_max_samples,
     )
-    dataset_cls = (
-        OnlineTrainDataset
-        if args.diffusion_type in DiffusionType.ROLLING
-        else TrainDataset
-    )
-    dataset = dataset_cls(
+    dataset = OnlineTrainDataset(
         args.dataset,
         dataset_data,
         args.input_motion_length,
@@ -119,13 +112,7 @@ def main():
         persistent_workers=True if args.num_workers > 0 else False,
     )
 
-    # args.lr_anneal_steps = (
-    #    args.lr_anneal_steps // args.train_dataset_repeat_times
-    # ) * len(
-    #    dataloader
-    # )  # the input lr_anneal_steps is by epoch, here convert it to the number of steps
-
-    train_diffusion_model(args, dataloader, device=device)
+    train_rpm(args, dataloader, device=device)
 
 
 if __name__ == "__main__":

@@ -1,23 +1,19 @@
 # Copyright (c) Meta Platforms, Inc. All Rights Reserved
-import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
 import torch
 import utils.constants as cnst
 
-from diffusion.resample import create_named_schedule_sampler
+from rolling.resample import create_named_schedule_sampler
 from evaluation.simplify_loc2rot import joints2smpl
 
 from loguru import logger
-from model.cfg_sampler import ClassifierFreeSampleModel
 
 from numpy.linalg import norm
-from torch.nn.utils.rnn import pad_sequence
 
 from utils import utils_transform
 
-from utils.constants import DataTypeGT, DiffusionType, ModelOutputType, RollingType
+from utils.constants import DataTypeGT, ModelOutputType
 
 
 def run_ik_on_tracking_input(sparse_input_vec, body_model, betas, device):
@@ -58,43 +54,22 @@ def run_ik_on_tracking_input(sparse_input_vec, body_model, betas, device):
     return init_pose
 
 
-def create_generator(args, model, diffusion, dataset, device, body_model):
+def create_generator(args, model, dataset, device, body_model):
     """
     Create a BaseGenerationWrapper from a library of pre-defined Generators.
 
     :param name: the name of the generator.
-    :param diffusion: the diffusion object to sample for.
     """
-
-    if args.diffusion_type == DiffusionType.ROLLING:
-        return RollingGenerationWrapper(
-            args, model, diffusion, dataset, device, body_model
-        )
-    elif getattr(args, "overlapping_test", False):
-        return OverlappingGenerationWrapper(
-            args, model, diffusion, dataset, device, body_model
-        )
-    else:
-        return NonOverlappingGenerationWrapper(
-            args, model, diffusion, dataset, device, body_model
-        )
+    return RollingGenerationWrapper(
+        args, model, dataset, device, body_model
+    )
 
 
 class BaseGenerationWrapper:
-    def __init__(self, args, model, diffusion, dataset, device, body_model):
+    def __init__(self, args, model, dataset, device, body_model):
         self.args = args
         self.init_ik = getattr(args, "init_ik", False)
-        self.cfg = getattr(args, "cfg", 1)
-        self.cfg_min_snr = getattr(args, "cfg_min_snr", -float("inf"))
-        self.cfg_max_snr = getattr(args, "cfg_max_snr", float("inf"))
-        self.model = (
-            model
-            if self.cfg == 1
-            else ClassifierFreeSampleModel(
-                model, diffusion, self.cfg_min_snr, self.cfg_max_snr
-            )
-        )
-        self.diffusion = diffusion
+        self.model = model
         self.dataset = dataset
         self.device = device
 
@@ -107,12 +82,6 @@ class BaseGenerationWrapper:
         suffix = ""
         if self.uncond:
             suffix += "_uncond"
-        if self.cfg != 1:
-            suffix += f"_{self.cfg}"
-            if self.cfg_min_snr != -float("inf"):
-                suffix += f"_m{self.cfg_min_snr}"
-            if self.cfg_max_snr != float("inf"):
-                suffix += f"_M{self.cfg_max_snr}"
         if self.dataset.eval_gap_config is not None:
             suffix += f"_{self.dataset.eval_gap_config}"
         return suffix
@@ -141,261 +110,10 @@ class BaseGenerationWrapper:
         )
 
 
-class NonOverlappingGenerationWrapper(BaseGenerationWrapper):
-    """
-    Rolling inference for diffusion model
-    """
-
-    def __init__(self, args, model, diffusion, dataset, device, body_model):
-        super().__init__(args, model, diffusion, dataset, device, body_model)
-        logger.info("Non overlapping testing.")
-
-    def get_folder_suffix(self):
-        suffix = super().get_folder_suffix()
-        if hasattr(self.args, "timestep_respacing"):
-            suffix += f"_{self.args.timestep_respacing}"
-        return "_nonov" + suffix
-
-    def __call__(
-        self,
-        gt_data,
-        sparse_original,
-        return_intermediates=False,
-        **kwargs,
-    ) -> Tuple[Dict[ModelOutputType, Optional[torch.Tensor]], Dict[str, Any]]:
-        """
-        gt_data: [bs, seq, f1]
-        sparse_original: [bs, seq, f2]
-        """
-        assert (
-            len(gt_data.shape) == len(sparse_original.shape) == 3
-        ), "[bs, seq, f] expected"
-        assert gt_data.shape[0] == 1, "Only support batch size 1 for now"
-        gt_data = gt_data[0]
-
-        num_per_batch = 8
-
-        gt_data = gt_data.to(self.device).float()
-        sparse_original = sparse_original.to(self.device).float()
-        num_frames = sparse_original.shape[1]
-        motion_nfeat = gt_data.shape[-1]
-
-        output_samples = []
-        count = 0
-        sparse_splits = []
-        flag_index = None
-
-        if (
-            self.input_motion_length <= num_frames
-        ):  # we split the sequence into non-overlapping sequences of 196 frames
-            while count < num_frames:
-                if (
-                    count + self.input_motion_length > num_frames
-                ):  # if we are beyond the limit, we get the last 196 frames
-                    tmp_k = num_frames - self.input_motion_length
-                    sub_sparse = sparse_original[
-                        :, tmp_k : tmp_k + self.input_motion_length
-                    ]
-                    flag_index = count - tmp_k
-                else:
-                    sub_sparse = sparse_original[
-                        :, count : count + self.input_motion_length
-                    ]
-                sparse_splits.append(sub_sparse)
-                count += self.input_motion_length
-        else:  # if the sequence is shorter than 196, we repeat the first frame of the sparse signals sequence
-            flag_index = self.input_motion_length - num_frames
-            tmp_init = sparse_original[:, :1].repeat(1, flag_index, 1).clone()
-            sub_sparse = torch.concat([tmp_init, sparse_original], dim=1)
-            sparse_splits = [sub_sparse]
-
-        n_steps = len(sparse_splits) // num_per_batch
-        if len(sparse_splits) % num_per_batch > 0:
-            n_steps += 1
-        # Split the sequence into n_steps non-overlapping batches
-
-        for step_index in range(n_steps):
-            sparse_per_batch = torch.cat(
-                sparse_splits[
-                    step_index * num_per_batch : (step_index + 1) * num_per_batch
-                ],
-                dim=0,
-            )
-
-            new_batch_size = sparse_per_batch.shape[0]
-
-            sample = self.diffusion.ddim_sample_loop(
-                self.model,
-                (new_batch_size, self.input_motion_length, motion_nfeat),
-                cond={DataTypeGT.SPARSE: sparse_per_batch},
-                clip_denoised=False,
-                model_kwargs={"force_mask": self.uncond, "guidance": self.cfg},
-            )
-
-            if (
-                flag_index is not None and step_index == n_steps - 1
-            ):  # the padding is only in the last window
-                last_batch = sample[-1]
-                last_batch = last_batch[flag_index:]
-                sample = sample[:-1].reshape(-1, motion_nfeat)
-                sample = torch.cat([sample, last_batch], dim=0)
-            else:
-                sample = sample.reshape(-1, motion_nfeat)
-
-            output_samples.append(self.inv_transform(sample.cpu().float()))
-
-        output = torch.cat(output_samples, dim=0).unsqueeze(0)
-        if return_intermediates:
-            raise NotImplementedError
-        return {
-            ModelOutputType.RELATIVE_ROTS: output,
-            ModelOutputType.SHAPE_PARAMS: None,
-        }, {}
-
-
-class OverlappingGenerationWrapper(BaseGenerationWrapper):
-    """
-    Rolling inference for diffusion model
-    """
-
-    def __init__(self, args, model, diffusion, dataset, device, body_model):
-        super().__init__(args, model, diffusion, dataset, device, body_model)
-        self.sld_wind_size = args.sld_wind_size
-        logger.info(f"Overlapping testing with ov={self.sld_wind_size} frames.")
-
-    def get_folder_suffix(self):
-        suffix = super().get_folder_suffix()
-        if hasattr(self.args, "timestep_respacing"):
-            suffix += f"_{self.args.timestep_respacing}"
-        return f"_ov{self.sld_wind_size}" + suffix
-
-    def __call__(
-        self,
-        gt_data,
-        sparse_original,
-        return_intermediates=False,
-        **kwargs,
-    ) -> Tuple[Dict[ModelOutputType, Optional[torch.Tensor]], Dict[str, Any]]:
-        """
-        gt_data: [bs, seq, f1]
-        sparse_original: [bs, seq, f2]
-        """
-        assert (
-            len(gt_data.shape) == len(sparse_original.shape) == 3
-        ), "[bs, seq, f] expected"
-        assert gt_data.shape[0] == 1, "Only support batch size 1 for now"
-        gt_data = gt_data[0]
-
-        gt_data = gt_data.to(self.device).float()
-        sparse_original = sparse_original.to(self.device).float()
-        num_frames = sparse_original.shape[1]
-        motion_nfeat = gt_data.shape[-1]
-
-        output_samples = []
-        count = 0
-        sparse_splits = []
-        flag_index = None
-
-        if (
-            num_frames < self.input_motion_length
-        ):  # if the sequence is shorter than 196, we pad it with the first frame of the sparse signals sequence
-            flag_index = self.input_motion_length - num_frames
-            tmp_init = sparse_original[:, :1].repeat(1, flag_index, 1).clone()
-            sub_sparse = torch.concat([tmp_init, sparse_original], dim=1)
-            sparse_splits = [
-                [sub_sparse, 0],
-            ]
-
-        else:  # if it is longer than 196, we split the sequence into subsequences that are overlapping 196-W frames (W=sld_wind_size)
-            while count + self.input_motion_length <= num_frames:
-                if count == 0:  # first iteration --> needs to go from 0 to 196
-                    sub_sparse = sparse_original[
-                        :, count : count + self.input_motion_length
-                    ]
-                    tmp_idx = 0  # where the subsequence starts
-                else:
-                    sub_sparse = sparse_original[
-                        :, count : count + self.input_motion_length
-                    ]
-                    tmp_idx = self.input_motion_length - self.sld_wind_size
-                sparse_splits.append([sub_sparse, tmp_idx])
-                count += self.sld_wind_size
-
-            if count < num_frames:  # add the last subsequence of length 196
-                sub_sparse = sparse_original[:, -self.input_motion_length :]
-                tmp_idx = self.input_motion_length - (
-                    num_frames - (count - self.sld_wind_size + self.input_motion_length)
-                )
-                sparse_splits.append([sub_sparse, tmp_idx])
-
-        memory = None  # init memory
-        for step_index in range(len(sparse_splits)):
-            sparse_per_batch = sparse_splits[step_index][0]
-            memory_end_index = sparse_splits[step_index][1]
-
-            new_batch_size = sparse_per_batch.shape[0]
-            assert new_batch_size == 1
-
-            model_kwargs = {"force_mask": self.uncond, "guidance": self.cfg}
-            if memory is not None:
-                model_kwargs["y"] = {}
-                model_kwargs["y"]["inpainting_mask"] = torch.zeros(
-                    (
-                        new_batch_size,
-                        self.input_motion_length,
-                        motion_nfeat,
-                    )
-                ).to(self.device)
-                model_kwargs["y"]["inpainting_mask"][:, :memory_end_index, :] = 1
-                model_kwargs["y"]["inpainted_motion"] = torch.zeros(
-                    (
-                        new_batch_size,
-                        self.input_motion_length,
-                        motion_nfeat,
-                    )
-                ).to(self.device)
-                model_kwargs["y"]["inpainted_motion"][:, :memory_end_index, :] = memory[
-                    :, -memory_end_index:, :
-                ]
-
-            sample = self.diffusion.ddim_sample_loop(
-                self.model,
-                (new_batch_size, self.input_motion_length, motion_nfeat),
-                cond={DataTypeGT.SPARSE: sparse_per_batch},
-                clip_denoised=False,
-                model_kwargs=model_kwargs,
-            )
-
-            memory = (
-                sample.clone().detach()
-            )  # we keep this iteration as the memory for the next step
-
-            if (
-                flag_index is not None
-            ):  # only for sequences shorter than 196 --> not relevant for autoregressive approach
-                sample = sample[:, flag_index:].cpu().reshape(-1, motion_nfeat)
-            else:
-                sample = sample[:, memory_end_index:].reshape(-1, motion_nfeat)
-
-            output_samples.append(self.inv_transform(sample.cpu().float()))
-
-        output = torch.cat(output_samples, dim=0).unsqueeze(0)
-
-        if return_intermediates:
-            raise NotImplementedError
-        return {
-            ModelOutputType.RELATIVE_ROTS: output,
-            ModelOutputType.SHAPE_PARAMS: None,
-        }, {}
-
-
 class RollingGenerationWrapper(BaseGenerationWrapper):
-    """
-    Rolling inference for diffusion model
-    """
 
-    def __init__(self, args, model, diffusion, dataset, device, body_model):
-        super().__init__(args, model, diffusion, dataset, device, body_model)
+    def __init__(self, args, model, dataset, device, body_model):
+        super().__init__(args, model, dataset, device, body_model)
         self.rolling_type = args.rolling_type
         self.rolling_motion_ctx = args.rolling_motion_ctx
         self.rolling_sparse_ctx = args.rolling_sparse_ctx
@@ -407,7 +125,7 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
         ):  # if unspecified, use the input motion length as default
             self.rolling_horizon = self.input_motion_length
         self.schedule_sampler = create_named_schedule_sampler(
-            self.rolling_type, self.diffusion
+            self.rolling_type, args.input_motion_length
         )
 
         t = self.schedule_sampler.sample(
@@ -463,7 +181,7 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
         if self.init_ik:
             IK_PADDING = (
                 ctx_margin + 30
-            )  # 30 frames for Rolling Diffusion to fix the initial pose
+            )  # 30 frames for RPM to fix the initial pose
             assert (
                 body_model is not None and betas is not None
             ), "IK requires body model"
@@ -523,7 +241,6 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
         t_bs = self.t.repeat(BS, 1)
         x_start = gt_data[:, ctx_margin : ctx_margin + self.input_motion_length]
         while current_idx < output.shape[1]:
-            # we prepare the motion --> q_sample
             cur_motion_ctx = output[
                 :, current_idx - self.rolling_motion_ctx : current_idx
             ]
@@ -539,9 +256,7 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
                 DataTypeGT.MOTION_CTX: cur_motion_ctx,
             }
 
-            x_t = self.diffusion.q_sample(x_start, t_bs).float()
-
-            result = self.model(x_t, t_bs, cond, x_start=x_start)
+            result = self.model(x_start, t_bs, cond, x_start=x_start)
             x_start = result[ModelOutputType.RELATIVE_ROTS]
             if return_predictions and all_predictions is not None:
                 all_predictions[current_idx] = self.inv_transform(x_start.cpu())[0]

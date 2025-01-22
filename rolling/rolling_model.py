@@ -18,18 +18,9 @@ import numpy as np
 import torch as th
 import utils.constants as constants
 from data_loaders.dataloader import TrainDataset
-from diffusion.gaussian_diffusion import (
-    _extract_into_tensor,
-    GaussianDiffusion,
-    LossType,
-    ModelMeanType,
-    ModelVarType,
-)
 from evaluation.utils import BodyModelsWrapper
-from torch.distributions.exponential import Exponential
 from utils.constants import (
     DataTypeGT,
-    FreeRunningJumpType,
     LossDistType,
     ModelOutputType,
     MotionLossType,
@@ -37,6 +28,7 @@ from utils.constants import (
     RollingType,
 )
 from utils.utils_transform import sixd2aa
+from collections.abc import Callable
 
 
 def loss_distance(
@@ -99,29 +91,50 @@ def loss_jitter(a: th.Tensor):
     return loss
 
 
-class CustomBaseGaussianDiffusion(GaussianDiffusion):
+
+class RollingPredictionModel():
     def __init__(
         self,
-        **kwargs,
+        mask_cond_fn:Callable,
+        rolling_type=RollingType.ROLLING,
+        rolling_motion_ctx:int=10,
+        rolling_sparse_ctx:int=10,
+        rolling_fr_frames:int=0,
+        rolling_latency:int=0,
+        target_type:PredictionTargetType=PredictionTargetType.POSITIONS,
+        ctx_perturbation:float=0.0,
+        sp_perturbation:float=0.0,
+        loss_dist_type:LossDistType=LossDistType.L2,
+        loss_velocity:float=0.0,
+        loss_fk:float=0.0,
+        loss_fk_vel:float=0.0,
+        support_dir:Optional[str]=None,
     ):
-        super(CustomBaseGaussianDiffusion, self).__init__(
-            **kwargs,
-        )
-        self.loss_dist_type = kwargs.get("loss_dist_type", LossDistType.L2)
-        self.loss_velocity = kwargs.get("loss_velocity", 0.0)
-        self.loss_jitter = kwargs.get("loss_jitter", 0.0)
-        self.loss_fk = kwargs.get("loss_fk", 0.0)
-        self.loss_fk_vel = kwargs.get("loss_fk_vel", 0.0)
+        self.rolling_type = rolling_type
+        assert (
+            self.rolling_type != RollingType.UNIFORM
+        ), "Uniform schedule for RDM is not supported."
+        self.motion_cxt_len = rolling_motion_ctx
+        self.sparse_cxt_len = rolling_sparse_ctx
+        self.lat = rolling_latency
+        self.max_freerunning_steps = rolling_fr_frames
+        self.ctx_perturbation = ctx_perturbation
+        self.sp_perturbation = sp_perturbation
+        self.mask_cond_fn = mask_cond_fn
+        self.target_type = target_type
+
+        # losses
+        self.loss_dist_type = loss_dist_type
+        self.loss_velocity = loss_velocity
+        self.loss_jitter = loss_jitter
+        self.loss_fk = loss_fk
+        self.loss_fk_vel = loss_fk_vel
         if (
             self.loss_fk > 0
             or self.loss_fk_vel > 0
         ):
-            support_dir = kwargs.get("support_dir", None)
             assert support_dir is not None, "Support dir is required for FK loss"
             self.body_model = BodyModelsWrapper(support_dir)
-        assert (
-            self.model_mean_type == ModelMeanType.START_X
-        ), "Only X_start pred is supported for RDM"
 
     def process_prediction_through_fk(
         self,
@@ -178,166 +191,6 @@ class CustomBaseGaussianDiffusion(GaussianDiffusion):
         output[ModelOutputType.WORLD_JOINTS] = pred_joints
         return output
 
-    def p_mean_variance(
-        self,
-        model,
-        x,
-        t,
-        cond,
-        clip_denoised=True,
-        denoised_fn=None,
-        model_kwargs=None,
-    ):
-        """
-        Custom p_mean_variance function, which is used for our models. The difference is that we return
-        the dictionary of model outputs, instead of just the output of the diffusion process.
-        This way, we can add additional heads outside the diffusion paradigm (e.g. for shape regression).
-        """
-        B, C = x.shape[:2]
-        assert t.shape == (B,) or t.shape == (B, C)
-        if model_kwargs is not None:
-            model_output = model(x, self._scale_timesteps(t), cond, **model_kwargs)
-        else:
-            model_output = model(x, self._scale_timesteps(t), cond)
-
-        model_variance, model_log_variance = {
-            # for fixedlarge, we set the initial (log-)variance like so
-            # to get a better decoder log likelihood.
-            ModelVarType.FIXED_LARGE: (
-                np.append(self.posterior_variance[1], self.betas[1:]),
-                np.log(np.append(self.posterior_variance[1], self.betas[1:])),
-            ),
-            ModelVarType.FIXED_SMALL: (
-                self.posterior_variance,
-                self.posterior_log_variance_clipped,
-            ),
-        }[self.model_var_type]
-
-        model_variance = _extract_into_tensor(model_variance, t, x.shape)
-        model_log_variance = _extract_into_tensor(model_log_variance, t, x.shape)
-
-        pred_xstart = model_output[
-            ModelOutputType.RELATIVE_ROTS
-        ]  # RELATIVE_ROTS is the output of the diffusion process
-        model_mean, _, _ = self.q_posterior_mean_variance(
-            x_start=pred_xstart, x_t=x, t=t
-        )
-
-        assert (
-            model_mean.shape == model_log_variance.shape == pred_xstart.shape == x.shape
-        )
-        out_dict = {
-            "mean": model_mean,
-            "variance": model_variance,
-            "log_variance": model_log_variance,
-            "pred_xstart": pred_xstart,
-        }
-        pred_xstart = model_output[ModelOutputType.RELATIVE_ROTS]
-        # add additional outputs to the dictionary
-        for k in model_output:
-            out_dict[k] = model_output[k]
-        return out_dict
-
-
-class DiffusionModel(CustomBaseGaussianDiffusion):
-    def __init__(
-        self,
-        **kwargs,
-    ):
-        super(DiffusionModel, self).__init__(
-            **kwargs,
-        )
-        assert self.loss_type == LossType.MSE, "only MSE loss is supported"
-
-    def training_losses(
-        self, model, gt_data, t, cond, model_kwargs=None, noise=None, dataset=None
-    ):
-        x_start = gt_data[DataTypeGT.RELATIVE_ROTS]
-        if model_kwargs is None:
-            model_kwargs = {}
-        if noise is None:
-            noise = th.randn_like(x_start)
-        x_t = self.q_sample(x_start, t, noise=noise)
-
-        output = model(x_t, self._scale_timesteps(t), cond, **model_kwargs)
-
-        target = x_start
-
-        terms = {}
-        terms[MotionLossType.LOSS] = 0
-        terms[MotionLossType.ROT_MSE] = loss_distance(
-            target,
-            output[ModelOutputType.RELATIVE_ROTS],
-            dist_type=self.loss_dist_type,
-        ).mean(dim=-1)
-        terms[MotionLossType.LOSS] += terms[MotionLossType.ROT_MSE]
-        if self.loss_velocity != 0:
-            terms[MotionLossType.VEL_MSE] = loss_velocity(
-                target,
-                output[ModelOutputType.RELATIVE_ROTS],
-                dist_type=self.loss_dist_type,
-            ).mean(dim=-1)
-            terms[MotionLossType.LOSS] += (
-                terms[MotionLossType.VEL_MSE] * self.loss_velocity
-            )
-        if self.loss_jitter != 0:
-            terms[MotionLossType.JITTER] = loss_jitter(
-                output[ModelOutputType.RELATIVE_ROTS],
-            ).mean(dim=-1)
-            terms[MotionLossType.LOSS] += (
-                terms[MotionLossType.JITTER] * self.loss_jitter
-            )
-        if self.loss_fk != 0 or self.loss_fk_vel > 0:
-            assert (
-                dataset is not None
-            ), "Dataset is required for FK loss (inv transform)"
-            output = self.process_prediction_through_fk(
-                output, gt_data, self.body_model, dataset=dataset
-            )
-            bs, seq_len = output[ModelOutputType.WORLD_JOINTS].shape[:2]
-            pred_joints = output[ModelOutputType.WORLD_JOINTS].reshape(
-                (bs, seq_len, -1)
-            )
-            gt_joints = gt_data[DataTypeGT.WORLD_JOINTS].reshape((bs, seq_len, -1))
-            if self.loss_fk != 0:
-                terms[MotionLossType.JOINTS_MSE] = loss_distance(
-                    pred_joints,
-                    gt_joints,
-                    dist_type=self.loss_dist_type,
-                    joint_dim=3,
-                ).mean(dim=-1)
-                terms[MotionLossType.LOSS] += (
-                    terms[MotionLossType.JOINTS_MSE] * self.loss_fk
-                )
-        return terms
-
-
-class RollingDiffusionModel(CustomBaseGaussianDiffusion):
-    """
-    Simplified version of GaussianDiffusion, which is used for rolling diffusion
-    """
-
-    def __init__(
-        self,
-        **kwargs,
-    ):
-        super(RollingDiffusionModel, self).__init__(
-            **kwargs,
-        )
-        self.rolling_type = kwargs["rolling_type"]
-        assert (
-            self.rolling_type != RollingType.UNIFORM
-        ), "Uniform schedule for RDM is not supported."
-        self.motion_cxt_len = kwargs.get("rolling_motion_ctx", 10)
-        self.sparse_cxt_len = kwargs.get("rolling_sparse_ctx", 10)
-        self.lat = kwargs.get("rolling_latency", 0)
-        self.max_freerunning_steps = kwargs.get("rolling_fr_frames", 0)
-        self.ctx_perturbation = kwargs.get("ctx_perturbation", 0.0)
-        self.sp_perturbation = kwargs.get("sp_perturbation", 0.0)
-        self.mask_cond_fn = kwargs.get("mask_cond_fn", None)
-        self.target_type = kwargs.get("target_type", PredictionTargetType.POSITIONS)
-        self.clamp_noise = kwargs.get("clamp_noise", False)
-
     def perturb_context(self, context):
         if self.ctx_perturbation > 0.0:
             context = context + th.randn_like(context) * self.ctx_perturbation
@@ -365,9 +218,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
         x_start_[:, -1] = th.zeros_like(
             x_start_[:, -1]
         )  # we set the new frame of the long-term future to 0. This is done to let the network know which is the initial prediction, and be able to reduce uncertainty.
-        # x_start_[:, -1] = x_start[
-        #    :, -2
-        # ]  # we duplicate the last frame as it's going to be done at inference stage. This is done because q_sample doesn't fully destroy the signal, and we don't want to leak GT.
         cond_ = {
             DataTypeGT.SPARSE: cond[DataTypeGT.SPARSE][
                 :, i : i + self.sparse_cxt_len + 1 + self.lat
@@ -377,9 +227,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
             ],
         }
 
-        x_t = self.q_sample(x_start_, t, clamp_noise=self.clamp_noise).float()
-        model_kwargs["x_start"] = x_start_
-        model_output = model(x_t, t, cond_, **model_kwargs)
+        model_output = model(x_start_, t, cond_, **model_kwargs)
 
         if update_context:
             x_start[:, i : i + nframes] = model_output[ModelOutputType.RELATIVE_ROTS]
@@ -459,9 +307,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
         - last_ctx_frame: the last context frame
         - prev_pred: the previous prediction
         """
-        nframes = t.shape[1]
-        loss_weights = self.get_loss_weights(t)
-
         terms = {}
         terms[MotionLossType.LOSS] = 0
         terms[MotionLossType.ROT_MSE] = loss_distance(
@@ -469,7 +314,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
             output[ModelOutputType.RELATIVE_ROTS],
             dist_type=self.loss_dist_type,
         )
-        terms[MotionLossType.LOSS] += terms[MotionLossType.ROT_MSE] * loss_weights
+        terms[MotionLossType.LOSS] += terms[MotionLossType.ROT_MSE]
 
         if self.loss_velocity != 0:
             terms[MotionLossType.VEL_MSE] = loss_velocity(
@@ -478,7 +323,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
                 dist_type=self.loss_dist_type,
             )
             terms[MotionLossType.LOSS] += (
-                terms[MotionLossType.VEL_MSE] * self.loss_velocity * loss_weights
+                terms[MotionLossType.VEL_MSE] * self.loss_velocity
             )
         if self.loss_fk != 0:
             assert (
@@ -500,7 +345,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
                     joint_dim=3,
                 )
                 terms[MotionLossType.LOSS] += (
-                    terms[MotionLossType.JOINTS_MSE] * self.loss_fk * loss_weights
+                    terms[MotionLossType.JOINTS_MSE] * self.loss_fk
                 )
             if self.loss_fk_vel != 0:
                 terms[MotionLossType.JOINTS_VEL_MSE] = loss_velocity(
@@ -512,7 +357,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
                 terms[MotionLossType.LOSS] += (
                     terms[MotionLossType.JOINTS_VEL_MSE]
                     * self.loss_fk_vel
-                    * loss_weights
                 )
 
         return terms
@@ -534,9 +378,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
         else:
             # no freerunning
             x_start = gt_data[DataTypeGT.RELATIVE_ROTS]
-            x_t = self.q_sample(x_start, t, clamp_noise=self.clamp_noise).float()
-            model_kwargs["x_start"] = x_start
-            model_output = model(x_t, t, cond, **model_kwargs)
+            model_output = model(x_start, t, cond, **model_kwargs)
             last_ctx_frame = self.motion_cxt_len
             prev_pred = x_start
 

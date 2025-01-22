@@ -7,17 +7,16 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch as th
-import torch.distributed as dist
-from diffusion.gaussian_diffusion import GaussianDiffusion
 from loguru import logger
 from utils.constants import RollingType
+from typing import Optional
 
 
 @dataclass
 class NoiseScheduleData:
     timesteps: th.Tensor
     weights: th.Tensor
-    padding_mask: th.Tensor
+    padding_mask: Optional[th.Tensor]
 
 
 class ScheduleSampler(ABC):
@@ -64,9 +63,9 @@ class UniformSampler(ScheduleSampler):
     Samples a single timestep for each batch element (standard diffusion)
     """
 
-    def __init__(self, diffusion):
-        self.diffusion = diffusion
-        self._weights = np.ones([diffusion.num_timesteps])
+    def __init__(self, pred_length):
+        self.pred_length = pred_length
+        self._weights = np.ones([self.pred_length])
 
     def weights(self):
         return self._weights
@@ -82,7 +81,7 @@ class RollingSampler(UniformSampler):
 
     def sample(self, batch_size, seq_len, device, **kwargs):
         indices = th.round(
-            th.linspace(0, self.diffusion.num_timesteps - 1, seq_len)
+            th.linspace(0, self.pred_length - 1, seq_len)
         ).long()
         indices = indices.unsqueeze(0).repeat((batch_size, 1))
         weights = th.ones_like(indices)
@@ -92,7 +91,7 @@ class RollingSampler(UniformSampler):
 
 
 def create_named_schedule_sampler(
-    name: RollingType, diffusion: GaussianDiffusion
+    name: RollingType, pred_length: int
 ) -> ScheduleSampler:
     """
     Create a ScheduleSampler from a library of pre-defined samplers.
@@ -102,9 +101,9 @@ def create_named_schedule_sampler(
     """
     if name == RollingType.UNIFORM:
         logger.info("Using standard time schedule.")
-        return UniformSampler(diffusion)
+        return UniformSampler(pred_length)
     elif name == RollingType.ROLLING:
         logger.info("Using rolling time schedule.")
-        return RollingSampler(diffusion)
+        return RollingSampler(pred_length)
     else:
         raise NotImplementedError(f"unknown schedule sampler: {name}")

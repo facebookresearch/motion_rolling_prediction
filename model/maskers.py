@@ -5,6 +5,7 @@ from functools import partial
 
 import torch
 from utils.constants import ConditionMasker
+from collections.abc import Callable
 
 
 def create_masker(
@@ -13,7 +14,7 @@ def create_masker(
     cond_mask_prob: float,
     min_f: int = 0,
     max_f: int = 1,
-):
+)->Callable:
     idces = ConditionMasker.get_entities_idces(masker, dataset)
     if ConditionMasker.is_seqwise(masker):
         return partial(

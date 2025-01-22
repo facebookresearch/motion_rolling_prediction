@@ -70,5 +70,5 @@ amass_idx = range(22)
 amass_smpl_idx = range(22)
 
 
-GMM_MODEL_DIR = "/data/sandcastle/boxes/fbsource/fbcode/xr_body/realtime_diffusion/utils/joints2smpl/smpl_models/"
-SMPL_MEAN_FILE = "/data/sandcastle/boxes/fbsource/fbcode/xr_body/realtime_diffusion/utils/joints2smpl/smpl_models/neutral_smpl_mean_params.h5"
+GMM_MODEL_DIR = "utils/joints2smpl/smpl_models"
+SMPL_MEAN_FILE = "utils/joints2smpl/smpl_models/neutral_smpl_mean_params.h5"

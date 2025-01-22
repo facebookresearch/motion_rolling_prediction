@@ -15,7 +15,7 @@ from evaluation.visualization import VisualizerWrapper
 
 from loguru import logger
 
-from utils.model_util import load_diffusion_model
+from utils.model_util import load_rpm_model
 from utils.parser_util import sample_args
 from pathlib import Path
 
@@ -55,7 +55,7 @@ def main():
         test_split=args.test_split,
     )
     logger.info("Loading model...")
-    model, diffusion = load_diffusion_model(args, device=device)
+    model, _ = load_rpm_model(args, device=device)
 
     exp_name = args.model_path.parts[-2]
     checkpoint_name = args.model_path.parts[-1].split(".")[0]
@@ -65,8 +65,7 @@ def main():
     )
     body_model = BodyModelsWrapper(args.support_dir)
 
-    generator = create_generator(
-        args, model, diffusion, dataset, device, body_model)
+    generator = create_generator(args, model, dataset, device, body_model)
     suffix = generator.get_folder_suffix()
     subfolder_name += suffix
     name_results_folder = "results"

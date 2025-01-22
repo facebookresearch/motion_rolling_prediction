@@ -10,28 +10,25 @@
 
 import functools
 
-import os
-import tempfile
 import time
 
 import torch
 
 from data_loaders.dataloader import TestDataset
 
-from diffusion import logger
-from diffusion.diffusion_model import RollingDiffusionModel
-from diffusion.fp16_util import MixedPrecisionTrainer
-from diffusion.resample import create_named_schedule_sampler
+from rolling import logger
+from rolling.fp16_util import MixedPrecisionTrainer
+from rolling.resample import create_named_schedule_sampler
 from evaluation.evaluation import EvaluatorWrapper
 from evaluation.generators import create_generator
 from evaluation.utils import BodyModelsWrapper
 from evaluation.visualization import VisualizerWrapper
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 from torch.optim import AdamW
 
 from tqdm import tqdm
 from utils import dist_util
-from utils.constants import DataTypeGT, MotionLossType, RollingType
+from utils.constants import DataTypeGT, MotionLossType
 
 layout = {
     "quartiles": {
@@ -41,12 +38,12 @@ layout = {
 }
 
 class TrainLoop:
-    def __init__(self, args, model, diffusion, data, device="cuda"):
+    def __init__(self, args, model, rpm, data, device="cuda"):
         self.args = args
         self.seq_len = args.input_motion_length
         self.dataset = args.dataset
         self.model = model
-        self.diffusion = diffusion
+        self.rpm = rpm
         self.data = data
         self.batch_size = args.batch_size
         self.lr = args.lr
@@ -87,11 +84,9 @@ class TrainLoop:
         if device != "cpu" and torch.cuda.is_available() and dist_util.dev() != "cpu":
             self.device = torch.device(dist_util.dev())
 
-        self.schedule_sampler_type = RollingType.UNIFORM
-        if isinstance(diffusion, RollingDiffusionModel):
-            self.schedule_sampler_type = diffusion.rolling_type
+        self.schedule_sampler_type = args.rolling_type
         self.schedule_sampler = create_named_schedule_sampler(
-            self.schedule_sampler_type, diffusion
+            self.schedule_sampler_type, args.input_motion_length
         )
 
         self.eval_during_training = args.eval_during_training
@@ -119,7 +114,7 @@ class TrainLoop:
                     input_conf_threshold=args.input_conf_threshold,
                 )
                 test_generator = create_generator(
-                    args, model, diffusion, test_dataset, device, body_model
+                    args, model, test_dataset, device, body_model
                 )
                 if self.eval_during_training:
                     evaluator = EvaluatorWrapper(
@@ -221,7 +216,7 @@ class TrainLoop:
         )  # dist_util.dev())
         t = sched.timesteps
         compute_losses = functools.partial(
-            self.diffusion.training_losses,
+            self.rpm.training_losses,
             self.ddp_model,
             batch,
             t,
@@ -247,7 +242,7 @@ class TrainLoop:
             weights = torch.cat([w_pad, weights], dim=1)
 
         loss = (losses[MotionLossType.LOSS] * weights).mean()
-        log_loss_dict(self.diffusion, t, {k: v * weights for k, v in losses.items()})
+        log_loss_dict({k: v * weights for k, v in losses.items()})
         self.mp_trainer.backward(loss)
 
     def _anneal_lr(self):
@@ -343,10 +338,6 @@ def parse_resume_step_from_filename(filename):
         return 0
 
 
-def log_loss_dict(diffusion, ts, losses):
+def log_loss_dict(losses):
     for key, values in losses.items():
         logger.logkv_mean(key, values.mean().item())
-        if ts.ndim == 1:
-            for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
-                quartile = int(4 * sub_t / diffusion.num_timesteps)
-                logger.logkv_mean(f"{key}_q{quartile}", sub_loss)

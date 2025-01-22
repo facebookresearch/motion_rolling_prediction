@@ -13,7 +13,6 @@ from pathlib import Path
 from utils.constants import (
     ConditionMasker,
     DatasetType,
-    DiffusionType,
     LossDistType,
     NoiseScheduleType,
     PredictionInputType,
@@ -28,7 +27,7 @@ def parse_and_load_from_model(parser):
     # do not try to specify them from cmd line since they will be overwritten
     add_data_options(parser)
     add_model_options(parser)
-    add_diffusion_options(parser)
+    add_rolling_options(parser)
     args = parser.parse_args()
     args_to_overwrite = []
     if args.dataset == DatasetType.DEFAULT:
@@ -36,7 +35,7 @@ def parse_and_load_from_model(parser):
         args_to_overwrite = ["support_dir", "dataset", "dataset_path", "results_dir"]
     for group_name in [
         "model",
-        "diffusion",
+        "rolling",
     ]:  # "dataset"]:
         args_to_overwrite += get_args_per_group_name(parser, args, group_name)
 
@@ -106,19 +105,13 @@ def add_base_options(parser):
     )
 
 
-def add_diffusion_options(parser):
-    group = parser.add_argument_group("diffusion")
+def add_rolling_options(parser):
+    group = parser.add_argument_group("rolling")
     group.add_argument(
         "--noise_schedule",
         default=NoiseScheduleType.COSINE,
         type=NoiseScheduleType,
         help="Noise schedule type",
-    )
-    group.add_argument(
-        "--diffusion_steps",
-        default=1000,
-        type=int,
-        help="Number of diffusion steps (denoted T in the paper)",
     )
     group.add_argument(
         "--sigma_small", default=True, type=bool, help="Use smaller sigma values."
@@ -158,16 +151,10 @@ def add_diffusion_options(parser):
 def add_model_options(parser):
     group = parser.add_argument_group("model")
     group.add_argument(
-        "--diffusion_type",
-        default=DiffusionType.STANDARD,
-        type=DiffusionType,
-        help="Diffusion type as reported in the paper.",
-    )
-    group.add_argument(
         "--masker",
         default=ConditionMasker.SEQ_ALL,
         type=ConditionMasker,
-        help="Type of masker for unconditional generation, or CFG (e.g., default, independent)",
+        help="Type of masker for unconditional generation (e.g., default, independent)",
     )
     group.add_argument(
         "--masker_minf",
@@ -194,15 +181,10 @@ def add_model_options(parser):
         help="type of previous prediction fed into the network (noisy, clean, none)",
     )
     group.add_argument(
-        "--clamp_noise",
-        action="store_true",
-        help="If noise is clamped to [-1, 1] when q-sampling",
-    )
-    group.add_argument(
         "--rolling_type",
         default=RollingType.ROLLING,
         type=RollingType,
-        help="Rolling diffusion type (rolling, omp, diffusionforcing)",
+        help="Rolling diffusion type",
     )
     group.add_argument(
         "--rolling_context",
@@ -283,7 +265,7 @@ def add_model_options(parser):
     group.add_argument(
         "--framewise_time_emb",
         action="store_true",
-        help="frame-wise time embedding (for rolling diffusion)",
+        help="frame-wise time embedding (for rolling prediction)",
     )
     # ======== MDM PARAMS ========
     group.add_argument(
@@ -337,7 +319,7 @@ def add_model_options(parser):
     group.add_argument(
         "--time_emb_strategy",
         default="concat",
-        help="[with Transformer] type of diffusion timestep embedding strategy (e.g., concat, add, norm).",
+        help="[with Transformer] type of timestep embedding strategy (e.g., concat, add, norm).",
     )
     group.add_argument(
         "--use_shape_head",
@@ -575,25 +557,7 @@ def add_sampling_options(parser):
     group.add_argument(
         "--init_ik",
         action="store_true",
-        help="if true, will initialize the rolling diffusion with T-pose (oriented according to headset) + IK on the controllers/tracking wrist points",
-    )
-    group.add_argument(
-        "--cfg",
-        default=1.0,
-        type=float,
-        help="Classifier-free guidance value (default=1.0)",
-    )
-    group.add_argument(
-        "--cfg_min_snr",
-        default=-float("inf"),
-        type=float,
-        help="CFG in intervals (https://arxiv.org/pdf/2404.07724) - min snr where applied",
-    )
-    group.add_argument(
-        "--cfg_max_snr",
-        default=float("inf"),
-        type=float,
-        help="CFG in intervals (https://arxiv.org/pdf/2404.07724) - max snr where applied",
+        help="if true, will initialize the rolling prediction with T-pose (oriented according to headset) + IK on the controllers/tracking wrist points",
     )
     group.add_argument(
         "--eval_batch_size", default=1, type=int, help="Batch size during sampling."
@@ -615,7 +579,7 @@ def train_args():
     add_base_options(parser)
     add_data_options(parser)
     add_model_options(parser)
-    add_diffusion_options(parser)
+    add_rolling_options(parser)
     add_training_options(parser)
     return parser.parse_args()
 

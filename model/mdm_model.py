@@ -69,7 +69,7 @@ class FrameDropout(nn.Module):
 class RollingMDM(nn.Module):
     """
     Based on original MDM code: https://github.com/GuyTevet/motion-diffusion-model/blob/main/model/mdm.py
-    and adapted so that can be used for rolling diffusion (https://arxiv.org/abs/2402.09470)
+    and adapted so that can be used as a rolling prediction model
     """
 
     def __init__(

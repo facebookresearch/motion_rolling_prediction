@@ -30,12 +30,8 @@ class MotionLossType(str, Enum):
     LOSS = "LOSS"
     ROT_MSE = "ROT_MSE"
     VEL_MSE = "VEL_MSE"
-    JITTER = "JITTER"
-    CORRECTION = "CORRECTION"
     JOINTS_MSE = "JOINTS_MSE"
     JOINTS_VEL_MSE = "JOINTS_VEL_MSE"
-    JOINTS_VEL_AVG_MSE = "JOINTS_VEL_AVG_MSE"
-    JOINTS_VEL_FEET = "JOINTS_VEL_FEET"
 
 
 class DataTypeGT(str, Enum):
@@ -60,11 +56,6 @@ class ModelOutputType(str, Enum):
     WORLD_JOINTS = "WORLD_JOINTS"
 
 
-class DiffusionType(str, Enum):
-    STANDARD = "standard"
-    ROLLING = "rolling"
-
-
 class RollingType(str, Enum):
     UNIFORM = "uniform"
     ROLLING = "rolling"
@@ -85,26 +76,6 @@ class FreeRunningJumpType(str, Enum):
     NONE = "none"
     UNIFORM = "uniform"
     EXPONENTIAL = "exponential"
-
-
-class DiffusionLossWeightType(str, Enum):
-    CONSTANT = "constant"
-    SNR = "snr"
-    INV_SNR = "inv_snr"
-    TRUNC_SNR = "trunc_snr"
-    VMIN_SNR = "vmin_snr_"
-    MIN_SNR = "min_snr_"
-    MAX_SNR = "max_snr_"
-
-    @classmethod
-    def parse(cls, value):
-        for member in cls:
-            if value.startswith(member.value):
-                suffix = value[len(member.value) :]  # Extract suffix
-                if suffix != "":
-                    suffix = float(suffix)
-                return member, suffix
-        raise ValueError(f"{value} is not a valid {cls.__name__} with suffix")
 
 
 class RollingVisType(str, Enum):
