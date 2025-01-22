@@ -114,14 +114,6 @@ class RollingVisType(str, Enum):
     BOXES_CR = "boxes_cr"
 
 
-class BackpropThroughTimeType(str, Enum):
-    NONE = "none"
-    FULL = "full"
-    BLOCKWISE = "blockwise"
-    FULL_PAST = "full_past"
-    BLOCKWISE_PAST = "blockwise_past"
-
-
 class PredictionTargetType(str, Enum):
     POSITIONS = "positions"  # the model output is returned as is
     POSITIONS_SNR = (

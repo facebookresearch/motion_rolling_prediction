@@ -120,7 +120,6 @@ def create_gaussian_diffusion(args):
             rolling_motion_ctx=args.rolling_motion_ctx,
             rolling_sparse_ctx=args.rolling_sparse_ctx,
             rolling_fr_frames=args.rolling_fr_frames,
-            rolling_fr_bptt=args.rolling_fr_bptt,
             rolling_fr_jump=args.rolling_fr_jump,
             target_type=args.target_type,
             clamp_noise=args.clamp_noise,

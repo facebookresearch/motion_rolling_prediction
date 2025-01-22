@@ -28,7 +28,6 @@ from diffusion.gaussian_diffusion import (
 from evaluation.utils import BodyModelsWrapper
 from torch.distributions.exponential import Exponential
 from utils.constants import (
-    BackpropThroughTimeType,
     DataTypeGT,
     FreeRunningJumpType,
     LossDistType,
@@ -333,9 +332,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
         self.sparse_cxt_len = kwargs.get("rolling_sparse_ctx", 10)
         self.lat = kwargs.get("rolling_latency", 0)
         self.max_freerunning_steps = kwargs.get("rolling_fr_frames", 0)
-        self.freerunning_bptt = kwargs.get(
-            "rolling_fr_bptt", BackpropThroughTimeType.NONE
-        )
         self.freerunning_jump = kwargs.get("rolling_fr_jump", FreeRunningJumpType.NONE)
         self.ctx_perturbation = kwargs.get("ctx_perturbation", 0.0)
         self.sp_perturbation = kwargs.get("sp_perturbation", 0.0)
@@ -418,30 +414,11 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
         cond[DataTypeGT.MOTION_CTX] = cond[DataTypeGT.MOTION_CTX].clone()
 
         fr = th.randint(0, self.max_freerunning_steps + 1, (1,))[0].item()
-        if self.freerunning_bptt in (
-            BackpropThroughTimeType.FULL,
-            BackpropThroughTimeType.FULL_PAST,
-        ):
-            no_grad_steps, grad_steps = 0, fr + 1
-        elif self.freerunning_bptt == BackpropThroughTimeType.NONE:
-            no_grad_steps, grad_steps = fr, 1
-        elif self.freerunning_bptt in (
-            BackpropThroughTimeType.BLOCKWISE,
-            BackpropThroughTimeType.BLOCKWISE_PAST,
-        ):
-            # random step between 0 and fr
-            no_grad_steps = th.randint(0, fr + 1, (1,))[0].item()
-            grad_steps = 1 + fr - no_grad_steps
+        no_grad_steps, grad_steps = fr, 1
 
-        loss_in_past = self.freerunning_bptt in (
-            BackpropThroughTimeType.FULL_PAST,
-            BackpropThroughTimeType.BLOCKWISE_PAST,
-        )
         t_ = t
         # slice gt_data so that it matches the motion segment predicted after the FreeRunning frames
-        s0 = (
-            no_grad_steps if loss_in_past else fr
-        )  # start timeframe where we start to compute loss
+        s0 = fr # start timeframe where we start to compute loss
         s1 = fr + nframes  # end timeframe where we stop computing loss
         gt_data = {
             k: (
@@ -451,16 +428,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
             )
             for k in gt_data.keys()
         }
-
-        if loss_in_past:
-            # padding of t
-            t_pad = th.zeros(
-                (t.shape[0], grad_steps - 1),
-                device=t.device,
-                dtype=t.dtype,
-            )
-            t = th.cat((t_pad, t), dim=1)
-            model_output = th.zeros_like(gt_data[DataTypeGT.RELATIVE_ROTS])
 
         i = 0
         # NO GRAD stage
@@ -477,7 +444,7 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
         # GRAD stage
         while i < no_grad_steps + grad_steps:
             update = i != no_grad_steps + grad_steps - 1
-            model_output_ = self.freerunning_step(
+            model_output = self.freerunning_step(
                 model,
                 i,
                 x_start,
@@ -486,13 +453,6 @@ class RollingDiffusionModel(CustomBaseGaussianDiffusion):
                 model_kwargs,
                 update_context=update,
             )
-            if loss_in_past:
-                tgt_idx = i - no_grad_steps
-                model_output[ModelOutputType.RELATIVE_ROTS][
-                    :, tgt_idx : tgt_idx + nframes
-                ] = model_output_[ModelOutputType.RELATIVE_ROTS]
-            else:
-                model_output = model_output_
 
             # increase i
             if i == no_grad_steps + grad_steps - 1:

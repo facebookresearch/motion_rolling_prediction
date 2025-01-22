@@ -11,7 +11,6 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from utils.constants import (
-    BackpropThroughTimeType,
     ConditionMasker,
     DatasetType,
     DiffusionType,
@@ -229,12 +228,6 @@ def add_model_options(parser):
         default=0,
         type=int,
         help="num of max iterations of free running to be done",
-    )
-    group.add_argument(
-        "--rolling_fr_bptt",
-        default=BackpropThroughTimeType.NONE,
-        type=BackpropThroughTimeType,
-        help="type of backprop through time",
     )
     group.add_argument(
         "--rolling_fr_jump",
