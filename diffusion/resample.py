@@ -81,28 +81,6 @@ class RollingSampler(UniformSampler):
     """
 
     def sample(self, batch_size, seq_len, device, **kwargs):
-        # same for all batch
-        starting_point = (
-            (self.diffusion.num_timesteps // seq_len)
-            if seq_len > 0
-            else self.diffusion.num_timesteps - 1
-        )
-        indices = th.round(
-            th.linspace(starting_point, self.diffusion.num_timesteps - 1, seq_len)
-        ).long()
-        indices = indices.unsqueeze(0).repeat((batch_size, 1))
-        weights = th.ones_like(indices)
-
-        return NoiseScheduleData(indices.to(device), weights.to(device), None)
-
-
-class RollingSamplerV2(UniformSampler):
-    """
-    RollingSamplerV2 is RollingSampler starting at 0 instead of the "starting_point".
-    This fixes the issue that one of the timesteps was repeated at the middle of the sequence.
-    """
-
-    def sample(self, batch_size, seq_len, device, **kwargs):
         indices = th.round(
             th.linspace(0, self.diffusion.num_timesteps - 1, seq_len)
         ).long()
@@ -111,46 +89,6 @@ class RollingSamplerV2(UniformSampler):
 
         return NoiseScheduleData(indices.to(device), weights.to(device), None)
 
-
-class OMPSampler(UniformSampler):
-    """
-    Sampler that allows to sample increasing sequences of timesteps with random depth
-    for all batch elements. Timesteps beyond the random depth are set to the last timestep.
-    E.g.: diffusion steps = 5 --> [[0, 2, 4, 4, 4], [0, 1, 2, 3, 4], [4, 4, 4, 4, 4], [0, 1, 3, 4, 4]]
-    """
-
-    def sample(self, batch_size, seq_len, device, train=True, **kwargs):
-        assert seq_len > 1, "OMPSampler requires seq_len > 1"
-        # random max seq for each batch size
-        indices = th.zeros((batch_size, seq_len), device=device).long()
-        weights = th.zeros((batch_size, seq_len), device=device).float()
-        indices += self.diffusion.num_timesteps - 1
-        for i in range(batch_size):
-            _max_seq = np.random.randint(1, seq_len + 1) if train else seq_len
-            starting_point = (self.diffusion.num_timesteps - 1) // _max_seq
-            indices[i, :_max_seq] = th.round(
-                th.linspace(starting_point, self.diffusion.num_timesteps - 1, _max_seq)
-            ).long()
-            weights[i, :_max_seq] = 1
-
-        padding_mask = (1 - weights).bool()
-        return NoiseScheduleData(indices, weights, padding_mask)
-
-
-class DFSampler(UniformSampler):
-    """
-    Random sampling of timesteps within a sequence.
-    It can be considered the sampling performed in the DiffusionForcing paper:
-    https://arxiv.org/abs/2407.01392
-    """
-
-    def sample(self, batch_size, seq_len, device, **kwargs):
-        # all random from 0 to self.diffusion.num_timesteps
-        indices = th.randint(
-            1, self.diffusion.num_timesteps, (batch_size, seq_len)
-        ).long()
-        weights = th.from_numpy(self.weights()).float().to(device)
-        return NoiseScheduleData(indices.to(device), weights.to(device), None)
 
 
 def create_named_schedule_sampler(
@@ -168,16 +106,5 @@ def create_named_schedule_sampler(
     elif name == RollingType.ROLLING:
         logger.info("Using rolling time schedule.")
         return RollingSampler(diffusion)
-    elif name == RollingType.ROLLING_0:
-        logger.info("Using rolling time schedule (starting at 0).")
-        return RollingSamplerV2(diffusion)
-    elif name == RollingType.OMP:
-        logger.info("Using OMP time schedule.")
-        return OMPSampler(diffusion)
-    elif name == RollingType.DIFFUSIONFORCING:
-        logger.info(
-            "Using DiffusionForcing time schedule (all timesteps random inside a sequence)."
-        )
-        return DFSampler(diffusion)
     else:
         raise NotImplementedError(f"unknown schedule sampler: {name}")

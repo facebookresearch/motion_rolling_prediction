@@ -105,16 +105,6 @@ class TrainLoop:
                 ("", None, args.input_motion_length),
                 ("_medHandsGaps", "medium_hands_idp", args.input_motion_length),
             ]
-            if args.rolling_type == RollingType.OMP and args.input_motion_length >= 5:
-                extra_seq_len = 5
-                to_evaluate_list += [
-                    (f"_{extra_seq_len}", None, extra_seq_len),
-                    (
-                        f"_medHandsGaps_{extra_seq_len}",
-                        "medium_hands_idp",
-                        extra_seq_len,
-                    ),
-                ]
             for suffix, eval_gap_config, rolling_horizon in to_evaluate_list:
                 self.test_suffixs.append(suffix)
                 args.rolling_horizon = rolling_horizon

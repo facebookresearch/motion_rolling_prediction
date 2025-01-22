@@ -68,13 +68,6 @@ class DiffusionType(str, Enum):
 class RollingType(str, Enum):
     UNIFORM = "uniform"
     ROLLING = "rolling"
-    ROLLING_0 = "rolling_0"
-    OMP = "omp"
-    DIFFUSIONFORCING = "diffusionforcing"
-
-    @classmethod
-    def has_flexible_schedule(cls, value):
-        return value in [cls.DIFFUSIONFORCING, cls.OMP]
 
 
 class NoiseScheduleType(str, Enum):
