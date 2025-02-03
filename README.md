@@ -46,8 +46,8 @@ rolling_prediction_models
 ├──── body_model/
 ├──── data/
 ├──── ...
-├── dataset/
-├── evaluation/
+├── checkpoints/
+├── data_loaders/
 └── ...
 ```
 
@@ -55,10 +55,6 @@ rolling_prediction_models
 ```shell
 conda env create -f environment.yml
 conda activate rpm
-python -m spacy download en_core_web_sm
-pip install git+https://github.com/openai/CLIP.git
-pip install git+https://github.com/GuyTevet/smplx.git
-conda install ffmpeg -y
 ```
 
 This [README file](TO ADD) contains instructions on how to visualize, evaluate, and train the model.
@@ -68,7 +64,7 @@ This [README file](TO ADD) contains instructions on how to visualize, evaluate, 
 If you find our work helpful, please cite:
 
 ```bibtex
-@inproceedings{barquero2024seamless,
+@inproceedings{barquero2025fromsparse,
   title={},
   author={},
   booktitle={},
@@ -77,8 +73,8 @@ If you find our work helpful, please cite:
 ```
 
 ## 🤝🏼 Acknowledgements
-- [AvatarPoser](https://github.com/eth-siplab/AvatarPoser): TO ADD
-- [AGRoL](https://github.com/facebookresearch/AGRoL): TO ADD
+
+This project has used and is built on source codes shared by [body_visualizer](https://github.com/nghorbani/body_visualizer), [human_body_prior](https://github.com/nghorbani/human_body_prior), [AvatarPoser](https://github.com/eth-siplab/AvatarPoser), [AGRoL](https://github.com/facebookresearch/AGRoL), [BoDiffusion](https://github.com/BCV-Uniandes/BoDiffusion), [AvatarJLM](https://github.com/zxz267/AvatarJLM), [SAGE](https://github.com/Wenchao-M/SAGE), [EgoPoser](https://github.com/eth-siplab/EgoPoser). We thank the authors for their effort and open sourcing their works.
 
 
 ## 📚 License

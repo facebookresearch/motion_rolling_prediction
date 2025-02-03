@@ -91,7 +91,7 @@ def add_base_options(parser):
     group.add_argument("--device", default=0, type=int, help="Device id to use.")
     group.add_argument("--seed", default=10, type=int, help="For fixing random seed.")
     group.add_argument(
-        "--batch_size", default=64, type=int, help="Batch size during training."
+        "--batch_size", default=32, type=int, help="Batch size during training."
     )
     group.add_argument(
         "--timestep_respacing", default="", type=str, help="ddim timestep respacing."
@@ -124,7 +124,7 @@ def add_rolling_options(parser):
     )
     group.add_argument(
         "--loss_dist_type",
-        default=LossDistType.L2,
+        default=LossDistType.L1,
         type=LossDistType,
         help="Type of loss to use (L1, L2).",
     )
@@ -152,7 +152,7 @@ def add_model_options(parser):
     group = parser.add_argument_group("model")
     group.add_argument(
         "--masker",
-        default=ConditionMasker.SEQ_ALL,
+        default=ConditionMasker.SEG_HANDS_IDP,
         type=ConditionMasker,
         help="Type of masker for unconditional generation (e.g., default, independent)",
     )
@@ -164,13 +164,13 @@ def add_model_options(parser):
     )
     group.add_argument(
         "--masker_maxf",
-        default=0,
+        default=sys.maxsize,
         type=int,
         help="Max frames of the masked segment (for segment-wise maskers only)",
     )
     group.add_argument(
         "--target_type",
-        default=PredictionTargetType.POSITIONS,
+        default=PredictionTargetType.PCAF_COSINE,
         type=PredictionTargetType,
         help="target type (position, pcaf_cosine, pcaf_cosinesq, pcaf_linear)",
     )
@@ -234,16 +234,15 @@ def add_model_options(parser):
     group.add_argument(
         "--sparse_dim", default=54, type=int, help="sparse signal feature dimension"
     )
-    group.add_argument("--layers", default=8, type=int, help="Number of layers.")
+    group.add_argument("--layers", default=4, type=int, help="Number of layers.")
     group.add_argument(
         "--latent_dim", default=512, type=int, help="Transformer/GRU width."
     )
     group.add_argument(
         "--cond_mask_prob",
-        default=0.0,
+        default=0.1,
         type=float,
-        help="The probability of masking the condition during training."
-        " For classifier-free guidance learning.",
+        help="The probability of masking the condition during training.",
     )
     group.add_argument(
         "--dropout",
@@ -306,7 +305,7 @@ def add_model_options(parser):
         "--cond",
         type=str,
         help="[using MDM arch] type of conditioning for sparse signal (tracking)",
-        default="concat",
+        default="xatt",
         choices=["concat", "xatt"],
     )
     # ======== Transformer PARAMS ========
@@ -411,13 +410,13 @@ def add_training_options(parser):
         type=str,
         help="Choose platform to log results. NoPlatform means no logging.",
     )
-    group.add_argument("--lr", default=2e-4, type=float, help="Learning rate.")
+    group.add_argument("--lr", default=3e-4, type=float, help="Learning rate.")
     group.add_argument(
-        "--weight_decay", default=0.0, type=float, help="Optimizer weight decay."
+        "--weight_decay", default=1e-4, type=float, help="Optimizer weight decay."
     )
     group.add_argument(
         "--lr_anneal_steps",
-        default=0,
+        default=50000,
         type=int,
         help="Number of learning rate anneal steps.",
     )
@@ -442,13 +441,13 @@ def add_training_options(parser):
     )
     group.add_argument(
         "--save_interval",
-        default=5000,
+        default=10,
         type=int,
         help="Save checkpoints and run evaluation each N steps",
     )
     group.add_argument(
         "--num_steps",
-        default=6000000,
+        default=100000,
         type=int,
         help="Training will stop after the specified number of steps.",
     )
