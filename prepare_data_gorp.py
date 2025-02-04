@@ -10,7 +10,7 @@ from loguru import logger
 from tqdm import tqdm
 from utils import utils_transform
 from utils.constants import SMPLGenderParam, SMPLModelType
-from utils.momentum_util import (
+from utils.gorp_util import (
     transform_controllers_from_gorp_to_smpl,
     transform_hand_tracking_from_gorp_to_smpl,
 )
