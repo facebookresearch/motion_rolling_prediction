@@ -73,7 +73,6 @@ def main():
             visualizer.visualize_subset(
                 output_dir,
                 overwrite=args.vis_overwrite,
-                num_rep=i,
                 export_results=args.vis_export,
             )
         if args.vis_gt:

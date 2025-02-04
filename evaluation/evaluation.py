@@ -362,8 +362,11 @@ class EvaluatorWrapper:
             plt.clf()
             plt.title(title)
             abs_max = -float("inf")
+            saved_count = 0
             for metric_name, style in plot_cfg.curve_styles.items():
                 if metric_name not in metrics:
+                    continue
+                elif metrics[metric_name].shape[0] == 0:
                     continue
                 y_values = list(
                     metrics[metric_name].mean(axis=0)
@@ -374,6 +377,10 @@ class EvaluatorWrapper:
                 # store array to npz
                 filename = "arr_" + metric_name + ".npz"
                 np.savez(plot_dir / filename, values=metrics[metric_name])
+                saved_count += 1
+            if saved_count == 0:
+                logger.warning(f"No tracking input gaps found, so skipping plot: {title}")
+                continue
             plt.legend()
             plt.xlabel("Frame")
             plt.ylabel("Value")

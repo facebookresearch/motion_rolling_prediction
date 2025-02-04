@@ -466,7 +466,7 @@ def load_data(
     """
     dataset_path = dataset_path / dataset.value / "new_format_data"
     motion_list = get_path(dataset_path, split)
-    assert len(motion_list) > 0, f"No data found in {dataset_path}"
+    assert len(motion_list) > 0, f"No data found in {dataset_path / split}"
     if max_samples != -1:
         motion_list = motion_list[:max_samples]
     mean_path, std_path = get_mean_std_path(dataset)

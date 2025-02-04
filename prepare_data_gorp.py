@@ -153,7 +153,7 @@ def main(args, device="cuda:0"):
     body_model = None
     all_datasets = sorted(os.listdir(args.splits_dir))
     for dataroot_subset in all_datasets:
-        for phase in ["test", "train"]:
+        for phase in ["test_controllers", "test_tracking", "train"]:
             # all_offsets = []
             logger.info(f"Processing {dataroot_subset} {phase}...")
             split_file = args.splits_dir / dataroot_subset / (phase + "_split.txt")
@@ -167,8 +167,11 @@ def main(args, device="cuda:0"):
             with open(split_file, "r") as f:
                 filepaths = [line.strip() for line in f]
 
+            start_idx = 0
+            if "tracking" in phase:
+                start_idx = 147
             for idx, filepath in tqdm(enumerate(filepaths)):
-                dst_fname = "{}.pt".format(idx + 1)
+                dst_fname = "{}.pt".format(start_idx + idx + 1)
                 current_file_path = args.root_dir / filepath
                 assert current_file_path.exists(), f"{current_file_path} does not exist. Aborting..."
                 bdata = np.load(
