@@ -25,7 +25,6 @@ from utils.constants import (
     ModelOutputType,
     MotionLossType,
     PredictionTargetType,
-    RollingType,
 )
 from utils.utils_transform import sixd2aa
 from collections.abc import Callable
@@ -96,30 +95,21 @@ class RollingPredictionModel():
     def __init__(
         self,
         mask_cond_fn:Callable,
-        rolling_type=RollingType.ROLLING,
         rolling_motion_ctx:int=10,
         rolling_sparse_ctx:int=10,
         rolling_fr_frames:int=0,
         rolling_latency:int=0,
         target_type:PredictionTargetType=PredictionTargetType.POSITIONS,
-        ctx_perturbation:float=0.0,
-        sp_perturbation:float=0.0,
         loss_dist_type:LossDistType=LossDistType.L2,
         loss_velocity:float=0.0,
         loss_fk:float=0.0,
         loss_fk_vel:float=0.0,
         support_dir:Optional[str]=None,
     ):
-        self.rolling_type = rolling_type
-        assert (
-            self.rolling_type != RollingType.UNIFORM
-        ), "Uniform schedule for RDM is not supported."
         self.motion_cxt_len = rolling_motion_ctx
         self.sparse_cxt_len = rolling_sparse_ctx
         self.lat = rolling_latency
         self.max_freerunning_steps = rolling_fr_frames
-        self.ctx_perturbation = ctx_perturbation
-        self.sp_perturbation = sp_perturbation
         self.mask_cond_fn = mask_cond_fn
         self.target_type = target_type
 
@@ -191,25 +181,6 @@ class RollingPredictionModel():
         output[ModelOutputType.WORLD_JOINTS] = pred_joints
         return output
 
-    def perturb_context(self, context):
-        if self.ctx_perturbation > 0.0:
-            context = context + th.randn_like(context) * self.ctx_perturbation
-        return context
-
-    def perturb_sparse(self, sparse):
-        # The std value for each batch element is sampled from 0 to this maximum std.
-        if self.sp_perturbation > 0.0:
-            # first decide random std for each batch element
-            std = (
-                th.rand(sparse.shape[0], device=sparse.device).float()
-                * self.sp_perturbation
-            )
-            # then add noise to sparse tracking signal according to std
-            while len(std.shape) < len(sparse.shape):
-                std = std.unsqueeze(-1)
-            sparse = sparse + th.randn_like(sparse) * std
-        return sparse
-
     def freerunning_step(
         self, model, i, x_start, cond, t, model_kwargs, update_context=True
     ):
@@ -232,7 +203,7 @@ class RollingPredictionModel():
         if update_context:
             x_start[:, i : i + nframes] = model_output[ModelOutputType.RELATIVE_ROTS]
             cond[DataTypeGT.MOTION_CTX][:, i + self.motion_cxt_len] = (
-                self.perturb_context(model_output[ModelOutputType.RELATIVE_ROTS][:, 0])
+                model_output[ModelOutputType.RELATIVE_ROTS][:, 0]
             )
         return model_output
 
@@ -368,9 +339,8 @@ class RollingPredictionModel():
             model_kwargs = {}
 
         cond[DataTypeGT.SPARSE] = self.mask_cond_fn(
-            self.perturb_sparse(cond[DataTypeGT.SPARSE]), True
+            cond[DataTypeGT.SPARSE], True
         )
-        cond[DataTypeGT.MOTION_CTX] = self.perturb_context(cond[DataTypeGT.MOTION_CTX])
         if self.max_freerunning_steps > 0:
             model_output, gt_data, prev_pred, last_ctx_frame = self.run_freerunning(
                 model, gt_data, t, cond, model_kwargs

@@ -71,8 +71,6 @@ def main():
     name_results_folder = "results"
     if args.test_split != "test":
         name_results_folder += f"_{args.test_split}"
-    if args.init_ik:
-        name_results_folder += "_init_ik"
     if args.use_real_input:
         name_results_folder += f"_real_input_C{args.input_conf_threshold}"
     output_dir = args.results_dir / name_results_folder / exp_name / subfolder_name
@@ -84,19 +82,13 @@ def main():
         if args.vis:
             logger.info("Visualizing the results...")
             # visualizer.visualize_all(output_dir)
-            for i in range(args.vis_reps):
-                # set seed to i
-                random.seed(args.seed + i)
-                np.random.seed(args.seed + i)
-                torch.manual_seed(args.seed + i)
-                # visualize the test subset of the dataset
-                visualizer.visualize_subset(
-                    output_dir,
-                    overwrite=args.vis_overwrite,
-                    vis_anim=args.vis_anim,
-                    num_rep=i,
-                    export_results=args.vis_export,
-                )
+            # visualize the test subset of the dataset
+            visualizer.visualize_subset(
+                output_dir,
+                overwrite=args.vis_overwrite,
+                num_rep=i,
+                export_results=args.vis_export,
+            )
         if args.vis_gt:
             logger.info("Visualizing the ground truth...")
             visualizer.visualize_all(

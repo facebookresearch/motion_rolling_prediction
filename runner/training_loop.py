@@ -28,7 +28,7 @@ from torch.optim import AdamW
 
 from tqdm import tqdm
 from utils import dist_util
-from utils.constants import DataTypeGT, MotionLossType
+from utils.constants import DataTypeGT, MotionLossType, RollingType
 
 layout = {
     "quartiles": {
@@ -84,9 +84,8 @@ class TrainLoop:
         if device != "cpu" and torch.cuda.is_available() and dist_util.dev() != "cpu":
             self.device = torch.device(dist_util.dev())
 
-        self.schedule_sampler_type = args.rolling_type
         self.schedule_sampler = create_named_schedule_sampler(
-            self.schedule_sampler_type, args.input_motion_length
+            RollingType.ROLLING, args.input_motion_length
         )
 
         self.eval_during_training = args.eval_during_training
@@ -97,12 +96,11 @@ class TrainLoop:
             self.test_suffixs = []
             body_model = BodyModelsWrapper(args.support_dir)
             to_evaluate_list = [
-                ("", None, args.input_motion_length),
-                ("_medHandsGaps", "medium_hands_idp", args.input_motion_length),
+                ("", None),
+                ("_medHandsGaps", "medium_hands_idp"),
             ]
-            for suffix, eval_gap_config, rolling_horizon in to_evaluate_list:
+            for suffix, eval_gap_config in to_evaluate_list:
                 self.test_suffixs.append(suffix)
-                args.rolling_horizon = rolling_horizon
                 test_dataset = TestDataset(
                     args.dataset,
                     args.dataset_path,

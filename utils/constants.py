@@ -60,12 +60,6 @@ class RollingType(str, Enum):
     ROLLING = "rolling"
 
 
-class NoiseScheduleType(str, Enum):
-    LINEAR = "linear"
-    COSINE = "cosine"
-    COSINE_NOEXP = "cosine_noexp"
-
-
 class LossDistType(str, Enum):
     L1 = "L1"
     L2 = "L2"
@@ -75,13 +69,6 @@ class FreeRunningJumpType(str, Enum):
     NONE = "none"
     UNIFORM = "uniform"
     EXPONENTIAL = "exponential"
-
-
-class RollingVisType(str, Enum):
-    NONE = "none"
-    ROLLING = "rolling"
-    ROLLING_CR = "rolling_cr"
-    BOXES_CR = "boxes_cr"
 
 
 class PredictionTargetType(str, Enum):

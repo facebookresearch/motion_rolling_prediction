@@ -78,13 +78,10 @@ def create_gaussian_rpm(args):
         max_f=args.masker_maxf,
     )
     return RollingPredictionModel(
-        rolling_type=args.rolling_type,
         rolling_motion_ctx=args.rolling_motion_ctx,
         rolling_sparse_ctx=args.rolling_sparse_ctx,
         rolling_fr_frames=args.rolling_fr_frames,
         target_type=args.target_type,
-        ctx_perturbation=args.ctx_perturbation,
-        sp_perturbation=args.sp_perturbation,
         mask_cond_fn=mask_cond_fn,
         loss_dist_type=args.loss_dist_type,
         loss_velocity=args.loss_velocity,

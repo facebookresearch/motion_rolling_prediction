@@ -14,11 +14,8 @@ from utils.constants import (
     ConditionMasker,
     DatasetType,
     LossDistType,
-    NoiseScheduleType,
     PredictionInputType,
     PredictionTargetType,
-    RollingType,
-    RollingVisType,
 )
 
 
@@ -27,7 +24,7 @@ def parse_and_load_from_model(parser):
     # do not try to specify them from cmd line since they will be overwritten
     add_data_options(parser)
     add_model_options(parser)
-    add_rolling_options(parser)
+    add_losses_options(parser)
     args = parser.parse_args()
     args_to_overwrite = []
     if args.dataset == DatasetType.DEFAULT:
@@ -35,7 +32,7 @@ def parse_and_load_from_model(parser):
         args_to_overwrite = ["support_dir", "dataset", "dataset_path", "results_dir"]
     for group_name in [
         "model",
-        "rolling",
+        "losses",
     ]:  # "dataset"]:
         args_to_overwrite += get_args_per_group_name(parser, args, group_name)
 
@@ -94,34 +91,15 @@ def add_base_options(parser):
         "--batch_size", default=32, type=int, help="Batch size during training."
     )
     group.add_argument(
-        "--timestep_respacing", default="", type=str, help="ddim timestep respacing."
-    )
-    group.add_argument(
         "--results_dir",
         default="./results",
-        # required=True,
         type=Path,
         help="Path to save checkpoints, logs, and results.",
     )
 
 
-def add_rolling_options(parser):
-    group = parser.add_argument_group("rolling")
-    group.add_argument(
-        "--noise_schedule",
-        default=NoiseScheduleType.COSINE,
-        type=NoiseScheduleType,
-        help="Noise schedule type",
-    )
-    group.add_argument(
-        "--sigma_small", default=True, type=bool, help="Use smaller sigma values."
-    )
-    group.add_argument(
-        "--loss_weights",
-        default="constant",
-        type=str,
-        help="Weighting of the loss. Can be constant or time-based.",
-    )
+def add_losses_options(parser):
+    group = parser.add_argument_group("losses")
     group.add_argument(
         "--loss_dist_type",
         default=LossDistType.L1,
@@ -181,18 +159,6 @@ def add_model_options(parser):
         help="type of previous prediction fed into the network (noisy, clean, none)",
     )
     group.add_argument(
-        "--rolling_type",
-        default=RollingType.ROLLING,
-        type=RollingType,
-        help="Rolling diffusion type",
-    )
-    group.add_argument(
-        "--rolling_context",
-        default=-1,
-        type=int,
-        help="[DEPRECATED] Uses the same length of context for both tracking signal and motion contexts",
-    )
-    group.add_argument(
         "--rolling_motion_ctx",
         default=0,
         type=int,
@@ -215,18 +181,6 @@ def add_model_options(parser):
         default=0,
         type=int,
         help="num of frames of latency (access to sparse info in the future)",
-    )
-    group.add_argument(
-        "--ctx_perturbation",
-        default=0,
-        type=float,
-        help="noise std for context perturbation (to avoid degeneration at inference)",
-    )
-    group.add_argument(
-        "--sp_perturbation",
-        default=0,
-        type=float,
-        help="max noise std for random sparse perturbation",
     )
     group.add_argument(
         "--motion_nfeat", default=132, type=int, help="motion feature dimension"
@@ -473,36 +427,23 @@ def add_training_options(parser):
 def add_sampling_options(parser):
     group = parser.add_argument_group("sampling")
     group.add_argument(
+        "--model_path",
+        required=True,
+        type=Path,
+        help="Path to model####.pt file to be sampled.",
+    )
+    group.add_argument(
         "--random",
         action="store_true",
         help="random order of the evaluation dataset",
     )
     group.add_argument(
-        "--overlapping_test",
-        action="store_true",
-        help="enabling overlapping test",
-    )
-    group.add_argument(
-        "--uncond",
-        action="store_true",
-        help="unconditional sampling",
-    )
-    group.add_argument(
-        "--num_per_batch",
-        default=256,
-        type=int,
-        help="the batch size of each split during non-overlapping testing",
-    )
-    group.add_argument(
-        "--sld_wind_size",
-        default=70,
-        type=int,
-        help="the sliding window size",
-    )
-    group.add_argument(
         "--eval",
         action="store_true",
         help="evaluate the model",
+    )
+    group.add_argument(
+        "--eval_batch_size", default=1, type=int, help="Batch size during sampling."
     )
     group.add_argument(
         "--vis",
@@ -515,12 +456,6 @@ def add_sampling_options(parser):
         help="visualize the GT",
     )
     group.add_argument(
-        "--vis_anim",
-        default=RollingVisType.NONE,
-        type=RollingVisType,
-        help="type of rolling animation to visualize",
-    )
-    group.add_argument(
         "--vis_overwrite",
         action="store_true",
         help="If True, will enable to overwrite previously generated visualizations.",
@@ -529,37 +464,6 @@ def add_sampling_options(parser):
         "--vis_export",
         action="store_true",
         help="If True, it will export all data needed for building the Unity scene.",
-    )
-    group.add_argument(
-        "--vis_reps",
-        default=1,
-        type=int,
-        help="Number of repetitions of the visualization.",
-    )
-    group.add_argument(
-        "--animation",
-        action="store_true",
-        help="visualize the rolling animation",
-    )
-    group.add_argument(
-        "--model_path",
-        required=True,
-        type=Path,
-        help="Path to model####.pt file to be sampled.",
-    )
-    group.add_argument(
-        "--rolling_horizon",
-        default=-1,
-        type=int,
-        help="the horizon of the rolling noise schedule. If -1, will use the default training value. It has to be < input_motion_length",
-    )
-    group.add_argument(
-        "--init_ik",
-        action="store_true",
-        help="if true, will initialize the rolling prediction with T-pose (oriented according to headset) + IK on the controllers/tracking wrist points",
-    )
-    group.add_argument(
-        "--eval_batch_size", default=1, type=int, help="Batch size during sampling."
     )
 
 
@@ -578,7 +482,7 @@ def train_args():
     add_base_options(parser)
     add_data_options(parser)
     add_model_options(parser)
-    add_rolling_options(parser)
+    add_losses_options(parser)
     add_training_options(parser)
     return parser.parse_args()
 
