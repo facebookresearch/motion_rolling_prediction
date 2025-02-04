@@ -206,11 +206,9 @@ class EvaluatorWrapper:
         output, _ = self.generator(
             gt_data.unsqueeze(0),
             sparse.unsqueeze(0),
-            return_intermediates=False,
             body_model=self.body_model.get_body_model(
                 SMPLModelType.SMPLX, SMPLGenderParam.NEUTRAL
             ),
-            betas=torch.stack([b[0] for b in gt_dict[DataTypeGT.SHAPE_PARAMS]], 0),
             filenames=gt_dict[DataTypeGT.FILENAME],
         )
         local_rot = output[ModelOutputType.RELATIVE_ROTS][0]
@@ -265,12 +263,8 @@ class EvaluatorWrapper:
                 output, _ = self.generator(
                     gt_data,
                     sparse,
-                    return_intermediates=False,
                     body_model=self.body_model.get_body_model(
                         SMPLModelType.SMPLX, SMPLGenderParam.NEUTRAL
-                    ),
-                    betas=torch.stack(
-                        [b[0] for b in gt_dict[DataTypeGT.SHAPE_PARAMS]], 0
                     ),
                     filenames=filenames,
                 )

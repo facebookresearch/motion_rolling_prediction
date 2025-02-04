@@ -225,7 +225,6 @@ class VisualizerWrapper:
         output, all_info = self.generator(
             gt_data.unsqueeze(0),
             sparse.unsqueeze(0),
-            return_intermediates=False,
             return_predictions=export_results,
             body_model=self.body_model.get_body_model(
                 SMPLModelType.SMPLX, SMPLGenderParam.NEUTRAL

@@ -40,7 +40,7 @@ class BaseGenerationWrapper:
             suffix += f"_{self.dataset.eval_gap_config}"
         return suffix
 
-    def __call__(self, gt_data, sparse_original, return_intermediates=False):
+    def __call__(self, gt_data, sparse_original):
         raise NotImplementedError
 
     def transform(self, data):
@@ -84,9 +84,7 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
         self,
         gt_data,
         sparse_original,
-        return_intermediates=False,
         return_predictions=False,
-        betas=None,
         **kwargs,
     ) -> Tuple[Dict[ModelOutputType, Optional[torch.Tensor]], Dict[str, Any]]:
         """
@@ -112,7 +110,6 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
         current_idx = ctx_margin
 
         all_info = {}
-        intermediates = []
         all_predictions = None
         if return_predictions:
             assert BS == 1, "only support batch size 1 for now"
@@ -147,17 +144,6 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
             x_start = result[ModelOutputType.RELATIVE_ROTS]
             if return_predictions and all_predictions is not None:
                 all_predictions[current_idx] = self.inv_transform(x_start.cpu())[0]
-            if return_intermediates:
-                raise NotImplementedError()  # TODO now we don't have noisy sample anymore
-                noisy_x_start = result["sample"]
-                intermediates.append(
-                    [
-                        current_idx,
-                        self.transform_to_aanorm(cur_motion_ctx.cpu()),
-                        self.transform_to_aanorm(x_start.cpu()),
-                        self.transform_to_aanorm(noisy_x_start.cpu()),
-                    ]
-                )
 
             # save first frame, which is fully denoised now
             output[:, current_idx : current_idx + 1] = x_start[:, :1]
@@ -183,8 +169,4 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
         }
         if return_predictions and all_predictions is not None:
             all_info["raw_predictions"] = all_predictions
-        if return_intermediates:
-            all_info["intermediates"] = intermediates
-            all_info["gt"] = self.transform_to_aanorm(gt_data.cpu())
-            all_info["prediction"] = self.transform_to_aanorm(output.cpu())
         return result, all_info
