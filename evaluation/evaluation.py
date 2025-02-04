@@ -1,7 +1,4 @@
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-import os
-import tempfile
-
 import matplotlib.pyplot as plt
 import numpy as np
 

@@ -2,8 +2,6 @@
 import argparse
 import os
 
-import tempfile
-
 import numpy as np
 import torch
 from evaluation.utils import BodyModelsWrapper

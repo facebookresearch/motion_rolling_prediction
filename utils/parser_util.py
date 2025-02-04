@@ -340,11 +340,6 @@ def add_training_options(parser):
         help="If True, will run evaluation during training.",
     )
     group.add_argument(
-        "--vis_during_training",
-        action="store_true",
-        help="If True, will run visualization during training.",
-    )
-    group.add_argument(
         "--log_interval", default=1, type=int, help="Log losses each N steps"
     )
     group.add_argument(

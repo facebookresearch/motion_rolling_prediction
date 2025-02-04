@@ -21,13 +21,12 @@ from rolling.fp16_util import MixedPrecisionTrainer
 from evaluation.evaluation import EvaluatorWrapper
 from evaluation.generators import create_generator
 from evaluation.utils import BodyModelsWrapper
-from evaluation.visualization import VisualizerWrapper
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch.optim import AdamW
 
 from tqdm import tqdm
 from utils import dist_util
-from utils.constants import DataTypeGT, MotionLossType, RollingType
+from utils.constants import MotionLossType
 
 layout = {
     "quartiles": {
@@ -84,8 +83,7 @@ class TrainLoop:
             self.device = torch.device(dist_util.dev())
 
         self.eval_during_training = args.eval_during_training
-        self.vis_during_training = args.vis_during_training
-        if self.eval_during_training or self.vis_during_training:
+        if self.eval_during_training:
             self.test_evaluators = []
             self.test_visualizers = []
             self.test_suffixs = []
@@ -109,27 +107,16 @@ class TrainLoop:
                 test_generator = create_generator(
                     args, model, test_dataset, device
                 )
-                if self.eval_during_training:
-                    evaluator = EvaluatorWrapper(
-                        args,
-                        test_generator,
-                        test_dataset,
-                        body_model,
-                        self.device,
-                        batch_size=min(args.batch_size, 64),
-                    )
-                    (self.save_dir / ("eval" + suffix)).mkdir(parents=True, exist_ok=True)
-                    self.test_evaluators.append(evaluator)
-                if self.vis_during_training:
-                    visualizer = VisualizerWrapper(
-                        args,
-                        test_generator,
-                        test_dataset,
-                        body_model,
-                        self.device,
-                    )
-                    (self.save_dir / ("vis" + suffix)).mkdir(parents=True, exist_ok=True)
-                    self.test_visualizers.append(visualizer)
+                evaluator = EvaluatorWrapper(
+                    args,
+                    test_generator,
+                    test_dataset,
+                    body_model,
+                    self.device,
+                    batch_size=min(args.batch_size, 64),
+                )
+                (self.save_dir / ("eval" + suffix)).mkdir(parents=True, exist_ok=True)
+                self.test_evaluators.append(evaluator)
 
         # LOGGING STUFF
         logger.log(args)
@@ -177,7 +164,6 @@ class TrainLoop:
             if epoch % self.save_interval == 0:
                 self.save(save_latest=True)
                 self.evaluate(epoch)
-                self.visualize()
             if epoch % self.log_interval == 0:
                 for k, v in logger.get_current().name2val.items():
                     if k == MotionLossType.LOSS:
@@ -189,7 +175,6 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save(save_latest=True)
             self.evaluate(epoch)
-            self.visualize()
 
     def run_step(self, batch, cond):
         self.forward_backward(batch, cond)
@@ -271,22 +256,6 @@ class TrainLoop:
             end_eval = time.time()
             logger.info(
                 f"[{eval_name}] Evaluation time: {round(end_eval-start_eval)/60}min"
-            )
-        self.model.train()
-
-    def visualize(self):
-        if not self.args.vis_during_training:
-            return
-        self.model.eval()
-        for visualizer, suffix in zip(self.test_evaluators, self.test_suffixs):
-            vis_name = f"vis{suffix}"
-            output_dir = self.save_dir / vis_name / f"step_{self.step+self.resume_step}"
-            output_dir.mkdir(parents=True, exist_ok=True)
-            start_vis = time.time()
-            visualizer.visualize_subset(output_dir)
-            end_vis = time.time()
-            logger.info(
-                f"[{vis_name}] Visualization time: {round(end_vis-start_vis)/60}min"
             )
         self.model.train()
 

@@ -1,7 +1,6 @@
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 import json
 import os
-import tempfile
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
