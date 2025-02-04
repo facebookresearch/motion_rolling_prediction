@@ -242,68 +242,6 @@ def jitter(
     return restrict_and_mean(jitter, restrict, data.trackingloss_masks)
 
 
-def penetration_error(
-    data: MetricsInputData,
-    target: str = "pred",
-):
-    """
-    Computes the average distance between the lowest point of the mesh and the floor.
-    If the vertex is above the floor, the penetration error is set to 0.
-    pred_mesh: (seq_len, v_num, 3)
-    """
-    pred_mesh = data.pred_mesh if target == "pred" else data.gt_mesh
-
-    # min across vertices of the mesh
-    lowest_height = pred_mesh[..., UP_DIM].min(1)[0]
-    # compute floating error
-    lowest_height_penetrating = th.where(
-        lowest_height >= FLOOR_HEIGHT, 0.0, lowest_height
-    )
-    return th.abs(FLOOR_HEIGHT - lowest_height_penetrating).mean()
-
-
-def floating_error(
-    data: MetricsInputData,
-    target: str = "pred",
-):
-    """
-    Computes the average distance between the lowest point of the mesh and the floor.
-    If there is penetration, the floating error is set to 0.
-    pred_mesh: (seq_len, v_num, 3)
-    """
-    pred_mesh = data.pred_mesh if target == "pred" else data.gt_mesh
-
-    # min across vertices of the mesh
-    lowest_height = pred_mesh[..., UP_DIM].min(1)[0]
-    # compute floating error
-    lowest_height_penetrating = th.where(
-        lowest_height <= FLOOR_HEIGHT, 0.0, lowest_height
-    )
-    return th.abs(FLOOR_HEIGHT - lowest_height_penetrating).mean()
-
-
-def skating_error(
-    data: MetricsInputData,
-    target: str = "pred",
-):
-    """
-    pred, gt: (seq_len, n_joints, 3)
-    """
-    pred = data.pred_positions if target == "pred" else data.gt_positions
-    HEIGHT_TH = 0.01
-
-    # 'L_Ankle' -> 7, 'R_Ankle' -> 8 , 'L_Foot' -> 10, 'R_Foot' -> 11
-    relevant_joints = [7, 8, 10, 11]
-    pred_joints = pred[:, relevant_joints]  # [seq_len, 4, 3]
-    pred_vels = th.linalg.norm(
-        pred_joints[1:] - pred_joints[:-1], dim=-1
-    )  # [seq_len, 4, 3]
-
-    mask_ground_contact = th.where(pred_joints[1:, :, UP_DIM] <= HEIGHT_TH, True, False)
-    ice_skating_vels = pred_vels * mask_ground_contact
-    return (ice_skating_vels).mean()
-
-
 def mpjre(
     data: MetricsInputData,
     joints: str = "all",
@@ -356,24 +294,18 @@ METRIC_FUNCS_DICT = {
     "mpjre": mpjre,
     "mpjpe": mpjpe,
     "mpjve": mpjve,
-    "handpe": partial(mpjpe, joints="hands"),
-    "upperpe": partial(mpjpe, joints="upper"),
-    "lowerpe": partial(mpjpe, joints="lower"),
-    "rootpe": partial(mpjpe, joints="root"),
+    #"handpe": partial(mpjpe, joints="hands"),
+    #"upperpe": partial(mpjpe, joints="upper"),
+    #"lowerpe": partial(mpjpe, joints="lower"),
+    #"rootpe": partial(mpjpe, joints="root"),
     "pred_jitter": partial(jitter, joints="all", target="pred"),
-    "pred_H_jitter": partial(jitter, joints="hands", target="pred"),
-    "pred_UB_jitter": partial(jitter, joints="upper", target="pred"),
-    "pred_LB_jitter": partial(jitter, joints="lower", target="pred"),
+    #"pred_H_jitter": partial(jitter, joints="hands", target="pred"),
+    #"pred_UB_jitter": partial(jitter, joints="upper", target="pred"),
+    #"pred_LB_jitter": partial(jitter, joints="lower", target="pred"),
     "gt_jitter": partial(jitter, joints="all", target="gt"),
-    "gt_H_jitter": partial(jitter, joints="hands", target="gt"),
-    "gt_UB_jitter": partial(jitter, joints="upper", target="gt"),
-    "gt_LB_jitter": partial(jitter, joints="lower", target="gt"),
-    "floating": partial(floating_error, target="pred"),
-    "penetration": partial(penetration_error, target="pred"),
-    "skating": partial(skating_error, target="pred"),
-    "gt_floating": partial(floating_error, target="gt"),
-    "gt_penetration": partial(penetration_error, target="gt"),
-    "gt_skating": partial(skating_error, target="gt"),
+    #"gt_H_jitter": partial(jitter, joints="hands", target="gt"),
+    #"gt_UB_jitter": partial(jitter, joints="upper", target="gt"),
+    #"gt_LB_jitter": partial(jitter, joints="lower", target="gt"),
 }
 
 ARRAY_BASED_METRICS = ["S_to_T_jerk", "T_to_S_jerk", "gt_S_to_T_jerk", "gt_T_to_S_jerk"]
@@ -441,54 +373,54 @@ METRIC_FUNCS_DICT_TRACKING_LOSS = {
         target="gt",
         transition_type=TransitionType.T_TO_S,
     ),
-    "tl_mpjpe": partial(mpjpe, restrict=RestrictType.LOSS),
-    "tr_mpjpe": partial(mpjpe, restrict=RestrictType.REC),
-    "tl_mpjve": partial(mpjve, restrict=RestrictType.LOSS),
-    "tr_mpjve": partial(mpjve, restrict=RestrictType.REC),
-    "tl_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.LOSS),
-    "tlf_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.LOSS_FRAME),
-    "tr_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.REC),
-    "trf_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.REC_FRAME),
-    "tl_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.LOSS),
-    "tlf_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.LOSS_FRAME),
-    "tr_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.REC),
-    "trf_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.REC_FRAME),
-    "tl_pred_jitter": partial(
-        jitter, joints="all", target="pred", restrict=RestrictType.LOSS
-    ),
-    "tlf_pred_jitter": partial(
-        jitter, joints="all", target="pred", restrict=RestrictType.LOSS_FRAME
-    ),
-    "tr_pred_jitter": partial(
-        jitter, joints="all", target="pred", restrict=RestrictType.REC
-    ),
-    "trf_pred_jitter": partial(
-        jitter, joints="all", target="pred", restrict=RestrictType.REC_FRAME
-    ),
-    "trf_pred_H_jitter": partial(
-        jitter, joints="hands", target="pred", restrict=RestrictType.REC_FRAME
-    ),
-    "trf_pred_LB_jitter": partial(
-        jitter, joints="lower", target="pred", restrict=RestrictType.REC_FRAME
-    ),
-    "tl_gt_jitter": partial(
-        jitter, joints="all", target="gt", restrict=RestrictType.LOSS
-    ),
-    "tlf_gt_jitter": partial(
-        jitter, joints="all", target="gt", restrict=RestrictType.LOSS_FRAME
-    ),
-    "tr_gt_jitter": partial(
-        jitter, joints="all", target="gt", restrict=RestrictType.REC
-    ),
-    "trf_gt_jitter": partial(
-        jitter, joints="all", target="gt", restrict=RestrictType.REC_FRAME
-    ),
-    "trf_gt_H_jitter": partial(
-        jitter, joints="hands", target="gt", restrict=RestrictType.REC_FRAME
-    ),
-    "trf_gt_LB_jitter": partial(
-        jitter, joints="lower", target="gt", restrict=RestrictType.REC_FRAME
-    ),
+    # "tl_mpjpe": partial(mpjpe, restrict=RestrictType.LOSS),
+    # "tr_mpjpe": partial(mpjpe, restrict=RestrictType.REC),
+    # "tl_mpjve": partial(mpjve, restrict=RestrictType.LOSS),
+    # "tr_mpjve": partial(mpjve, restrict=RestrictType.REC),
+    # "tl_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.LOSS),
+    # "tlf_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.LOSS_FRAME),
+    # "tr_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.REC),
+    # "trf_handpe": partial(mpjpe, joints="hands", restrict=RestrictType.REC_FRAME),
+    # "tl_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.LOSS),
+    # "tlf_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.LOSS_FRAME),
+    # "tr_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.REC),
+    # "trf_lowerpe": partial(mpjpe, joints="lower", restrict=RestrictType.REC_FRAME),
+    # "tl_pred_jitter": partial(
+    #     jitter, joints="all", target="pred", restrict=RestrictType.LOSS
+    # ),
+    # "tlf_pred_jitter": partial(
+    #     jitter, joints="all", target="pred", restrict=RestrictType.LOSS_FRAME
+    # ),
+    # "tr_pred_jitter": partial(
+    #     jitter, joints="all", target="pred", restrict=RestrictType.REC
+    # ),
+    # "trf_pred_jitter": partial(
+    #     jitter, joints="all", target="pred", restrict=RestrictType.REC_FRAME
+    # ),
+    # "trf_pred_H_jitter": partial(
+    #     jitter, joints="hands", target="pred", restrict=RestrictType.REC_FRAME
+    # ),
+    # "trf_pred_LB_jitter": partial(
+    #     jitter, joints="lower", target="pred", restrict=RestrictType.REC_FRAME
+    # ),
+    # "tl_gt_jitter": partial(
+    #     jitter, joints="all", target="gt", restrict=RestrictType.LOSS
+    # ),
+    # "tlf_gt_jitter": partial(
+    #     jitter, joints="all", target="gt", restrict=RestrictType.LOSS_FRAME
+    # ),
+    # "tr_gt_jitter": partial(
+    #     jitter, joints="all", target="gt", restrict=RestrictType.REC
+    # ),
+    # "trf_gt_jitter": partial(
+    #     jitter, joints="all", target="gt", restrict=RestrictType.REC_FRAME
+    # ),
+    # "trf_gt_H_jitter": partial(
+    #     jitter, joints="hands", target="gt", restrict=RestrictType.REC_FRAME
+    # ),
+    # "trf_gt_LB_jitter": partial(
+    #     jitter, joints="lower", target="gt", restrict=RestrictType.REC_FRAME
+    # ),
 }
 
 
@@ -496,14 +428,14 @@ LOGGING_METRICS = {
     "mpjre",
     "mpjpe",
     "mpjve",
-    "handpe",
-    "upperpe",
-    "lowerpe",
-    "rootpe",
+    # "handpe",
+    # "upperpe",
+    # "lowerpe",
+    # "rootpe",
     "pred_jitter",
     "gt_jitter",
-    "trf_pred_jitter",
-    "trf_pred_H_jitter",
+    # "trf_pred_jitter",
+    # "trf_pred_H_jitter",
 }
 
 

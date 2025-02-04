@@ -70,31 +70,11 @@ def loss_velocity(
     return loss
 
 
-def loss_jitter(a: th.Tensor):
-    # Loss penalizing high jitter.
-    bs, n, c = a.shape
-
-    loss = th.zeros((bs, n), device=a.device)
-    # we compute the derivative of the acceleration --> jerk
-    jitter = a[:, 3:] - 3 * a[:, 2:-1] + 3 * a[:, 1:-2] - a[:, :-3]
-    # we compute the norm of the derivative of the jerk per joint (6d rot), and average over joints
-    loss[:, 3:] = (
-        th.norm(
-            jitter.reshape(-1, 6),
-            2,
-            1,
-        )
-        .reshape(bs, n - 3, c // 6)
-        .mean(dim=-1)
-    )
-    return loss
-
-
-
 class RollingPredictionModel():
     def __init__(
         self,
         mask_cond_fn:Callable,
+        rolling_prediction_window:int=10,
         rolling_motion_ctx:int=10,
         rolling_sparse_ctx:int=10,
         rolling_fr_frames:int=0,
@@ -106,6 +86,7 @@ class RollingPredictionModel():
         loss_fk_vel:float=0.0,
         support_dir:Optional[str]=None,
     ):
+        self.rolling_prediction_window = rolling_prediction_window
         self.motion_cxt_len = rolling_motion_ctx
         self.sparse_cxt_len = rolling_sparse_ctx
         self.lat = rolling_latency
@@ -116,7 +97,6 @@ class RollingPredictionModel():
         # losses
         self.loss_dist_type = loss_dist_type
         self.loss_velocity = loss_velocity
-        self.loss_jitter = loss_jitter
         self.loss_fk = loss_fk
         self.loss_fk_vel = loss_fk_vel
         if (
@@ -182,9 +162,9 @@ class RollingPredictionModel():
         return output
 
     def freerunning_step(
-        self, model, i, x_start, cond, t, model_kwargs, update_context=True
+        self, model, i, x_start, cond, model_kwargs, update_context=True
     ):
-        nframes = t.shape[1]
+        nframes = self.rolling_prediction_window
         x_start_ = x_start[:, i : i + nframes]
         x_start_[:, -1] = th.zeros_like(
             x_start_[:, -1]
@@ -198,7 +178,7 @@ class RollingPredictionModel():
             ],
         }
 
-        model_output = model(x_start_, t, cond_, **model_kwargs)
+        model_output = model(x_start_, cond_, **model_kwargs)
 
         if update_context:
             x_start[:, i : i + nframes] = model_output[ModelOutputType.RELATIVE_ROTS]
@@ -207,8 +187,8 @@ class RollingPredictionModel():
             )
         return model_output
 
-    def run_freerunning(self, model, gt_data, t, cond, model_kwargs=None):
-        nframes = t.shape[1]
+    def run_freerunning(self, model, gt_data, cond, model_kwargs=None):
+        nframes = self.rolling_prediction_window
         x_start = gt_data[
             DataTypeGT.RELATIVE_ROTS
         ].clone()  # we initialize noisy prediction with GT for the first iteration.
@@ -217,7 +197,6 @@ class RollingPredictionModel():
 
         fr = th.randint(0, self.max_freerunning_steps + 1, (1,))[0].item()
 
-        t_ = t
         # slice gt_data so that it matches the motion segment predicted after the FreeRunning frames
         s0 = fr # start timeframe where we start to compute loss
         s1 = fr + nframes  # end timeframe where we stop computing loss
@@ -235,7 +214,7 @@ class RollingPredictionModel():
         with th.no_grad():
             for i in range(int(fr)):
                 self.freerunning_step(
-                    model, i, x_start, cond, t_, model_kwargs, update_context=True
+                    model, i, x_start, cond, model_kwargs, update_context=True
                 )
         model.train()
         # GRAD stage
@@ -244,7 +223,6 @@ class RollingPredictionModel():
             fr,
             x_start,
             cond,
-            t_,
             model_kwargs,
             update_context=False,
         )
@@ -257,20 +235,12 @@ class RollingPredictionModel():
         self,
         output: dict,
         gt_data: dict,
-        cond: dict,
-        t: th.Tensor,
-        last_ctx_frame: int,
-        prev_pred: th.Tensor,
         dataset: Optional[TrainDataset],
     ):
         """
         Computes the losses given:
         - output: the output dictionary of the model
         - gt_data: the ground truth dictionary
-        - cond: the conditioning data dictionary
-        - t: the timestep tensor
-        - last_ctx_frame: the last context frame
-        - prev_pred: the previous prediction
         """
         terms = {}
         terms[MotionLossType.LOSS] = 0
@@ -327,7 +297,7 @@ class RollingPredictionModel():
         return terms
 
     def training_losses(
-        self, model, gt_data, t, cond, model_kwargs=None, dataset=None
+        self, model, gt_data, cond, model_kwargs=None, dataset=None
     ):
         if model_kwargs is None:
             model_kwargs = {}
@@ -336,24 +306,17 @@ class RollingPredictionModel():
             cond[DataTypeGT.SPARSE], True
         )
         if self.max_freerunning_steps > 0:
-            model_output, gt_data, prev_pred, last_ctx_frame = self.run_freerunning(
-                model, gt_data, t, cond, model_kwargs
+            model_output, gt_data, _, _ = self.run_freerunning(
+                model, gt_data, cond, model_kwargs
             )
         else:
             # no freerunning
             x_start = gt_data[DataTypeGT.RELATIVE_ROTS]
-            model_output = model(x_start, t, cond, **model_kwargs)
-            last_ctx_frame = self.motion_cxt_len
-            prev_pred = x_start
+            model_output = model(x_start, cond, **model_kwargs)
 
-        terms = self.compute_losses(
+        # it returns dictionary of losses outputs with shape (bs, sl)
+        return self.compute_losses(
             model_output,
             gt_data,
-            cond,
-            t,
-            last_ctx_frame,
-            prev_pred,
             dataset,
         )
-        # it returns dictionary of losses outputs with shape (bs, sl)
-        return terms

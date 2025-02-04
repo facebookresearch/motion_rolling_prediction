@@ -206,7 +206,7 @@ def add_model_options(parser):
     )
     group.add_argument(
         "--input_motion_length",
-        default=196,
+        default=10,
         type=int,
         help="Limit for the maximal number of frames.",
     )
@@ -215,12 +215,6 @@ def add_model_options(parser):
         action="store_true",
         help="no data normalisation for the 6d motions",
     )
-    group.add_argument(
-        "--framewise_time_emb",
-        action="store_true",
-        help="frame-wise time embedding (for rolling prediction)",
-    )
-    # ======== MDM PARAMS ========
     group.add_argument(
         "--ff_size",
         default=1024,
@@ -238,46 +232,6 @@ def add_model_options(parser):
         default="gelu",
         type=str,
         help="activation layer",
-    )
-    group.add_argument(
-        "--dropout_framewise",
-        default=0.0,
-        type=float,
-        help="The dropout probability for each frame in the sequence to denoise.",
-    )
-    group.add_argument(
-        "--mdm_timestep_emb",
-        action="store_true",
-        help="[using MDM arch] use a seq-wise time embedding for each frame in the sequence to denoise.",
-    )
-    group.add_argument(
-        "--lookahead",
-        action="store_true",
-        help="[using MDM arch] lookahead attention (the inverted version of causal attention)",
-    )
-    group.add_argument(
-        "--cond",
-        type=str,
-        help="[using MDM arch] type of conditioning for sparse signal (tracking)",
-        default="xatt",
-        choices=["concat", "xatt"],
-    )
-    # ======== Transformer PARAMS ========
-    group.add_argument(
-        "--layers_cond",
-        default=1,
-        type=int,
-        help="[with Transformer] Number of layers for the encoder of the condition (ctx + sparse signal).",
-    )
-    group.add_argument(
-        "--time_emb_strategy",
-        default="concat",
-        help="[with Transformer] type of timestep embedding strategy (e.g., concat, add, norm).",
-    )
-    group.add_argument(
-        "--use_shape_head",
-        action="store_true",
-        help="activate the shape head (for blending shape regression)",
     )
 
 

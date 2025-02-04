@@ -41,7 +41,7 @@ def load_model_wo_clip(model, state_dict):
 
 def create_model_and_rpm(args):
     model = RollingMDM(**get_model_args(args))
-    rpm = create_gaussian_rpm(args)
+    rpm = create_rpm(args)
     model = ModelWrapper(model, args.target_type, args.prediction_input_type, args.input_motion_length)
     return model, rpm
 
@@ -60,16 +60,10 @@ def get_model_args(args):
         "ff_size": args.ff_size,
         "num_heads": args.num_heads,
         "activation": args.activation,
-        "dropout_framewise": args.dropout_framewise,
-        "mdm_timestep_emb": args.mdm_timestep_emb,
-        "lookahead": args.lookahead,
-        "use_shape_head": args.use_shape_head,
-        "mdm_timestep_emb": args.mdm_timestep_emb,
-        "cond": args.cond,
     }
 
 
-def create_gaussian_rpm(args):
+def create_rpm(args):
     mask_cond_fn = create_masker(
         args.masker,
         args.dataset,
@@ -78,6 +72,7 @@ def create_gaussian_rpm(args):
         max_f=args.masker_maxf,
     )
     return RollingPredictionModel(
+        rolling_prediction_window=args.input_motion_length,
         rolling_motion_ctx=args.rolling_motion_ctx,
         rolling_sparse_ctx=args.rolling_sparse_ctx,
         rolling_fr_frames=args.rolling_fr_frames,

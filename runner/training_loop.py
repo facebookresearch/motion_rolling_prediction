@@ -18,7 +18,6 @@ from data_loaders.dataloader import TestDataset
 
 from rolling import logger
 from rolling.fp16_util import MixedPrecisionTrainer
-from rolling.resample import create_named_schedule_sampler
 from evaluation.evaluation import EvaluatorWrapper
 from evaluation.generators import create_generator
 from evaluation.utils import BodyModelsWrapper
@@ -84,10 +83,6 @@ class TrainLoop:
         if device != "cpu" and torch.cuda.is_available() and dist_util.dev() != "cpu":
             self.device = torch.device(dist_util.dev())
 
-        self.schedule_sampler = create_named_schedule_sampler(
-            RollingType.ROLLING, args.input_motion_length
-        )
-
         self.eval_during_training = args.eval_during_training
         self.vis_during_training = args.vis_during_training
         if self.eval_during_training or self.vis_during_training:
@@ -135,9 +130,6 @@ class TrainLoop:
                     )
                     (self.save_dir / ("vis" + suffix)).mkdir(parents=True, exist_ok=True)
                     self.test_visualizers.append(visualizer)
-
-        self.use_ddp = False
-        self.ddp_model = self.model
 
         # LOGGING STUFF
         logger.log(args)
@@ -208,38 +200,17 @@ class TrainLoop:
     def forward_backward(self, batch, cond):
         self.mp_trainer.zero_grad()
 
-        bs = cond[DataTypeGT.SPARSE].shape[0]
-        sched = self.schedule_sampler.sample(
-            bs, self.seq_len, self.device, train=True
-        )  # dist_util.dev())
-        t = sched.timesteps
         compute_losses = functools.partial(
             self.rpm.training_losses,
-            self.ddp_model,
+            self.model,
             batch,
-            t,
             cond,
             dataset=self.data.dataset,
         )
 
         losses = compute_losses()
-        weights = sched.weights
-        if (
-            len(weights.shape) > 1
-            and weights.shape[1] != losses[MotionLossType.LOSS].shape[1]
-        ):
-            # dynamically pad weights when using training strategies like freerunning + BPTT
-            w_pad = torch.zeros(
-                weights.shape[0],
-                losses[MotionLossType.LOSS].shape[1] - weights.shape[1],
-                device=weights.device,
-                dtype=weights.dtype,
-            )
-            w_pad += weights[:, 0].unsqueeze(1)
-            weights = torch.cat([w_pad, weights], dim=1)
-
-        loss = (losses[MotionLossType.LOSS] * weights).mean()
-        log_loss_dict({k: v * weights for k, v in losses.items()})
+        loss = losses[MotionLossType.LOSS].mean()
+        log_loss_dict(losses)
         self.mp_trainer.backward(loss)
 
     def _anneal_lr(self):

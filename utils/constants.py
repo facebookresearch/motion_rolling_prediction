@@ -65,12 +65,6 @@ class LossDistType(str, Enum):
     L2 = "L2"
 
 
-class FreeRunningJumpType(str, Enum):
-    NONE = "none"
-    UNIFORM = "uniform"
-    EXPONENTIAL = "exponential"
-
-
 class PredictionTargetType(str, Enum):
     POSITIONS = "positions"  # the model output is returned as is
     PCAF_COSINE = "pcaf_cosine"

@@ -4,8 +4,6 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import utils.constants as cnst
 
-from rolling.resample import create_named_schedule_sampler
-
 from loguru import logger
 
 from numpy.linalg import norm
@@ -74,14 +72,6 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
         self.rolling_sparse_ctx = args.rolling_sparse_ctx
         self.rolling_latency = args.rolling_latency
 
-        self.schedule_sampler = create_named_schedule_sampler(
-            RollingType.ROLLING, args.input_motion_length
-        )
-
-        self.t = self.schedule_sampler.sample(
-            1, self.input_motion_length, device=self.device, train=False
-        ).timesteps
-
         logger.info(
             f"Rolling testing with {self.input_motion_length} frames."
         )
@@ -136,7 +126,6 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
                     gt_data[0, i : i + self.input_motion_length].cpu()
                 )
 
-        t_bs = self.t.repeat(BS, 1)
         x_start = gt_data[:, ctx_margin : ctx_margin + self.input_motion_length]
         while current_idx < output.shape[1]:
             cur_motion_ctx = output[
@@ -154,7 +143,7 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
                 DataTypeGT.MOTION_CTX: cur_motion_ctx,
             }
 
-            result = self.model(x_start, t_bs, cond, x_start=x_start)
+            result = self.model(x_start, cond, x_start=x_start)
             x_start = result[ModelOutputType.RELATIVE_ROTS]
             if return_predictions and all_predictions is not None:
                 all_predictions[current_idx] = self.inv_transform(x_start.cpu())[0]
