@@ -346,10 +346,11 @@ class EvaluatorWrapper:
         df.to_csv(csv_path, index=False)
         logger.info(f"Results successfully stored in a csv file: {csv_path=}")
 
-    def store_plots(self, metrics: dict, plot_dir: Path):
+    def store_plots(self, metrics: dict, plot_dir: Path) -> dict:
         if len(metrics.keys()) == 0:
-            return
+            return {}
 
+        additional_metrics = {}
         for plot_cfg in get_plots_configs():
             # plot_cfg is PlotConfig data class from utils.metrics
             title = plot_cfg.title
@@ -363,6 +364,7 @@ class EvaluatorWrapper:
             plt.title(title)
             abs_max = -float("inf")
             saved_count = 0
+            gt_key, pred_key = None, None
             for metric_name, style in plot_cfg.curve_styles.items():
                 if metric_name not in metrics:
                     continue
@@ -378,8 +380,12 @@ class EvaluatorWrapper:
                 filename = "arr_" + metric_name + ".npz"
                 np.savez(plot_dir / filename, values=metrics[metric_name])
                 saved_count += 1
+                if "gt" in metric_name:
+                    gt_key = metric_name
+                else:
+                    pred_key = metric_name
             if saved_count == 0:
-                logger.warning(f"No tracking input gaps found, so skipping plot: {title}")
+                logger.warning(f"No tracking input gaps found, so skipping plot/metric: {title}")
                 continue
             plt.legend()
             plt.xlabel("Frame")
@@ -389,6 +395,16 @@ class EvaluatorWrapper:
             plt.savefig(tgt_path)
             plt.close()
             logger.info(f"'{title}' plot saved in {tgt_path}")
+
+            pred_arr_mean = metrics[pred_key].mean(axis=0) * 0.01 # jitter multiplied by 0.01
+            gt_arr_mean = metrics[gt_key].mean(axis=0) * 0.01
+            PJ = pred_arr_mean.max()
+            AUJ = round(sum(abs(pred_arr_mean - gt_arr_mean)), 2)
+            additional_metrics[f"PJ ({title})"] = PJ
+            additional_metrics[f"AUJ ({title})"] = AUJ
+        return additional_metrics
+
+
 
     def print_results(self, log):
         # print the value for all the metrics

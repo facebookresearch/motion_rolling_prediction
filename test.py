@@ -102,7 +102,8 @@ def main():
         log, all_results_df, arr_based_metrics = evaluator.evaluate_all()
         csv_path = output_dir / f"results_{args.dataset}.csv"
         evaluator.store_all_results(all_results_df, csv_path)
-        evaluator.store_plots(arr_based_metrics, output_dir)
+        more_metrics = evaluator.store_plots(arr_based_metrics, output_dir)
+        log.update(more_metrics)
         evaluator.print_results(log)
 
 
