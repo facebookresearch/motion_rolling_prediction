@@ -399,7 +399,7 @@ class EvaluatorWrapper:
             pred_arr_mean = metrics[pred_key].mean(axis=0) * 0.01 # jitter multiplied by 0.01
             gt_arr_mean = metrics[gt_key].mean(axis=0) * 0.01
             PJ = pred_arr_mean.max()
-            AUJ = round(sum(abs(pred_arr_mean - gt_arr_mean)), 2)
+            AUJ = sum(abs(pred_arr_mean - gt_arr_mean))
             additional_metrics[f"PJ ({title})"] = PJ
             additional_metrics[f"AUJ ({title})"] = AUJ
         return additional_metrics
@@ -410,7 +410,7 @@ class EvaluatorWrapper:
         # print the value for all the metrics
         logger.info("Metrics:")
         for metric in log.keys():
-            logger.info(f"{metric}: {log[metric]}")
+            logger.info(f"{metric}: {round(log[metric], 2)}")
 
     def push_to_tb(self, log, tb_writer, iteration, suffix=""):
         logging_metrics = keep_logging_metrics(log)
