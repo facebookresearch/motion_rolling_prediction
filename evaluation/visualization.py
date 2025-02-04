@@ -27,7 +27,6 @@ from utils.constants import (
     DatasetType,
     DataTypeGT,
     ModelOutputType,
-    RollingVisType,
     SMPLGenderParam,
     SMPLModelType,
 )
@@ -200,26 +199,11 @@ class VisualizerWrapper:
             export_meshes=export_results,
         )
 
-    def visualize_animation(
-        self, all_info: dict, output_dir: Path, filename: str, vis_anim: RollingVisType
-    ):
-        if vis_anim == RollingVisType.NONE:
-            return
-        elif vis_anim == RollingVisType.ROLLING:
-            plot_rolling_features(all_info, output_dir, filename)
-        elif vis_anim == RollingVisType.ROLLING_CR:
-            plot_rolling_features_change_rate(all_info, output_dir, filename)
-        elif vis_anim == RollingVisType.BOXES_CR:
-            plot_change_rate_distribution(all_info, output_dir, filename)
-        else:
-            raise NotImplementedError
-
     def visualize_single(
         self,
         sample_idx: int,
         output_dir: Path,
         overwrite: bool = False,
-        vis_anim: RollingVisType = RollingVisType.NONE,
         num_rep: int = 1,
         export_results: bool = False,
     ):
@@ -238,12 +222,10 @@ class VisualizerWrapper:
             logger.info(f"Visualization already exists for {filename}. Skipping...")
             return
 
-        run_anim = vis_anim != RollingVisType.NONE
-
         output, all_info = self.generator(
             gt_data.unsqueeze(0),
             sparse.unsqueeze(0),
-            return_intermediates=run_anim,
+            return_intermediates=False,
             return_predictions=export_results,
             body_model=self.body_model.get_body_model(
                 SMPLModelType.SMPLX, SMPLGenderParam.NEUTRAL
@@ -253,9 +235,6 @@ class VisualizerWrapper:
                 gt_dict[DataTypeGT.FILENAME],
             ],
         )
-
-        if run_anim:
-            self.visualize_animation(all_info, output_dir, filename, vis_anim)
 
         local_rot = output[ModelOutputType.RELATIVE_ROTS][0]  # remove batch dimension
         betas = None
@@ -535,7 +514,6 @@ class VisualizerWrapper:
         samples: Optional[List[str]] = None,
         gt_data: bool = False,
         overwrite: bool = False,
-        vis_anim: RollingVisType = RollingVisType.NONE,
         num_rep: int = 1,
         export_results: bool = False,
     ):
@@ -563,7 +541,6 @@ class VisualizerWrapper:
                         sample_index,
                         output_dir,
                         overwrite=overwrite,
-                        vis_anim=vis_anim,
                         num_rep=num_rep,
                         export_results=export_results,
                     )
@@ -574,7 +551,6 @@ class VisualizerWrapper:
         names: List[str],
         gt_data: bool = False,
         overwrite: bool = False,
-        vis_anim: RollingVisType = RollingVisType.NONE,
         num_rep: int = 1,
         export_results: bool = False,
     ):
@@ -589,7 +565,6 @@ class VisualizerWrapper:
             samples=samples_list,
             gt_data=gt_data,
             overwrite=overwrite,
-            vis_anim=vis_anim,
             num_rep=num_rep,
             export_results=export_results,
         )
@@ -599,7 +574,6 @@ class VisualizerWrapper:
         output_dir: Path,
         gt_data: bool = False,
         overwrite: bool = False,
-        vis_anim: RollingVisType = RollingVisType.NONE,
         num_rep: int = 1,
         export_results: bool = False,
     ):
@@ -609,7 +583,6 @@ class VisualizerWrapper:
             names=VIS_SAMPLES_SUBSET[self.dataset_name],
             gt_data=gt_data,
             overwrite=overwrite,
-            vis_anim=vis_anim,
             num_rep=num_rep,
             export_results=export_results,
         )

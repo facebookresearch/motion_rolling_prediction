@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. All Rights Reserved
-import os
 import random
 
 import numpy as np
@@ -17,22 +16,10 @@ from loguru import logger
 
 from utils.model_util import load_rpm_model
 from utils.parser_util import sample_args
-from pathlib import Path
-
-
-def make_args_retrocompatible(args):
-    if args.rolling_context != -1:
-        logger.warning(
-            f"OLD FORMAT for rolling context length = {args.rolling_context}. This is deprecated."
-        )
-        # it means it was trained with old unified rolling context for sparse and motion
-        args.rolling_motion_ctx = args.rolling_context
-        args.rolling_sparse_ctx = args.rolling_context
 
 
 def main():
     args = sample_args()
-    make_args_retrocompatible(args)
     device = f"cuda:{args.device}" if not args.cpu else "cpu"
 
     torch.backends.cudnn.benchmark = False
@@ -65,7 +52,7 @@ def main():
     )
     body_model = BodyModelsWrapper(args.support_dir)
 
-    generator = create_generator(args, model, dataset, device, body_model)
+    generator = create_generator(args, model, dataset, device)
     suffix = generator.get_folder_suffix()
     subfolder_name += suffix
     name_results_folder = "results"

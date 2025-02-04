@@ -216,7 +216,6 @@ class RollingPredictionModel():
         cond[DataTypeGT.MOTION_CTX] = cond[DataTypeGT.MOTION_CTX].clone()
 
         fr = th.randint(0, self.max_freerunning_steps + 1, (1,))[0].item()
-        no_grad_steps, grad_steps = fr, 1
 
         t_ = t
         # slice gt_data so that it matches the motion segment predicted after the FreeRunning frames
@@ -231,32 +230,27 @@ class RollingPredictionModel():
             for k in gt_data.keys()
         }
 
-        i = 0
-        # NO GRAD stage
+        # NO GRAD stage - FreeRunning stage
         model.eval()
         with th.no_grad():
-            while i < no_grad_steps:
+            for i in range(int(fr)):
                 self.freerunning_step(
                     model, i, x_start, cond, t_, model_kwargs, update_context=True
                 )
-                i += 1 # increase i
         model.train()
         # GRAD stage
-        while i < no_grad_steps + grad_steps:
-            update = i != no_grad_steps + grad_steps - 1
-            model_output = self.freerunning_step(
-                model,
-                i,
-                x_start,
-                cond,
-                t_,
-                model_kwargs,
-                update_context=update,
-            )
-            i += 1
+        model_output = self.freerunning_step(
+            model,
+            fr,
+            x_start,
+            cond,
+            t_,
+            model_kwargs,
+            update_context=False,
+        )
 
-        last_ctx_frame = i - 1 + self.motion_cxt_len
-        prev_pred = x_start[:, i - 1 : i - 1 + nframes]
+        last_ctx_frame = int(fr + self.motion_cxt_len)
+        prev_pred = x_start[:, fr : fr + nframes]
         return model_output, gt_data, prev_pred, last_ctx_frame
 
     def compute_losses(
@@ -333,7 +327,7 @@ class RollingPredictionModel():
         return terms
 
     def training_losses(
-        self, model, gt_data, t, cond, model_kwargs=None, noise=None, dataset=None
+        self, model, gt_data, t, cond, model_kwargs=None, dataset=None
     ):
         if model_kwargs is None:
             model_kwargs = {}

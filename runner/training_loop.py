@@ -112,7 +112,7 @@ class TrainLoop:
                     input_conf_threshold=args.input_conf_threshold,
                 )
                 test_generator = create_generator(
-                    args, model, test_dataset, device, body_model
+                    args, model, test_dataset, device
                 )
                 if self.eval_during_training:
                     evaluator = EvaluatorWrapper(
