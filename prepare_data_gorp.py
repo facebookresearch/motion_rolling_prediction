@@ -285,19 +285,19 @@ def run():
     parser.add_argument(
         "--splits_dir",
         type=Path,
-        default="prepare_data/gorp",
+        default=Path("./prepare_data/gorp"),
         help="=dir where the data splits are defined",
     )
     parser.add_argument(
         "--support_dir",
         type=Path,
-        default=None,
+        default=Path("./SMPL"),
         help="=dir where you put your smplh and dmpls dirs",
     )
     parser.add_argument(
         "--save_dir",
         type=Path,
-        default="./datasets_processed/gorp/new_format_data",
+        default=Path("./datasets_processed/gorp/new_format_data"),
         help="=dir where you want to save your generated data",
     )
     parser.add_argument(
@@ -306,7 +306,7 @@ def run():
     parser.add_argument(
         "--out_fps",
         type=int,
-        default=60,
+        default=30,
         help="Output framerate of the generated data",
     )
     parser.add_argument(

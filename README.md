@@ -33,9 +33,13 @@ In extended reality (XR), generating full-body motion of the users is important 
 
 ## 👩🏻‍🏫 Getting started
 
-This code was tested on Ubuntu XX + Python XX + PyTorch XXX While other versions might work as well, we recommend using this conda environment to avoid any issues.
+This code was tested on Python 3.10 + PyTorch 2.5.1. While other versions might work as well, we recommend using our conda environment to avoid unexpected issues.
 
-1. Download the [human_body_prior](https://github.com/nghorbani/human_body_prior/tree/master/src) lib and [body_visualizer](https://github.com/nghorbani/body_visualizer/tree/master/src) lib and put them in this repo. The repo should look like
+1. Download the [human_body_prior](https://github.com/nghorbani/human_body_prior/tree/master/src) lib and [body_visualizer](https://github.com/nghorbani/body_visualizer/tree/master/src) lib and put them in this repo.
+
+2. Register + download the SMPL-X model from [this link](https://smpl-x.is.tue.mpg.de/). Download + unzip the '*SMPL-X with removed head bun (NPZ)*'. Then move the `SMPLX_NEUTRAL.npz` file to this repo into: `./SMPL/smplx/neutral/model.npz`.
+
+The repo should look like
 ```
 rolling_prediction_models
 ├── body_visualizer
@@ -46,12 +50,16 @@ rolling_prediction_models
 ├──── body_model/
 ├──── data/
 ├──── ...
+├── SMPL/
+├──── smplx/
+├────── neutral/
+├──────── model.npz
 ├── checkpoints/
 ├── data_loaders/
 └── ...
 ```
 
-2. Setup conda env:
+3. Setup conda env:
 ```shell
 conda env create -f environment.yml
 conda activate rpm

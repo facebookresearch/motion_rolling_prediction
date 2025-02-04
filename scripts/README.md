@@ -19,11 +19,8 @@ TO ADD
 2. Run the following script:
 
 ```bash
-python prepare_data.py --support_dir PATH_TO_SMPL_MODELS --save_dir ./datasets_processed/amass_p1 --root_dir PATH_TO_AMASS_DATASET --splits_dir prepare_data/amass_p1 --out_fps 60
+python prepare_data.py --save_dir ./datasets_processed/amass_p1 --root_dir PATH_TO_AMASS_DATASET --splits_dir prepare_data/amass_p1 --out_fps 60
 ```
-
-3. Download the mean/std of the dataset from **TO-BE-ADDED**
-4. Download the json files describing the random gaps from [here (TO BE ADDED)](), and move them to `./datasets_processed/amass_p1/eval_gap_configs/`.
 
 > [!NOTE]
 > Add the `--cpu` argument if you get a `RuntimeError: CUDA error: out of memory`. Note that the preprocessing will take a bit longer.
@@ -34,18 +31,16 @@ python prepare_data.py --support_dir PATH_TO_SMPL_MODELS --save_dir ./datasets_p
 2. Run the following script:
 
 ```bash
-python prepare_data.py --support_dir PATH_TO_SMPL_MODELS --save_dir ./datasets_processed/amass_p2 --root_dir PATH_TO_AMASS_DATASET --splits_dir prepare_data/amass_p2 --out_fps 30
+python prepare_data.py --save_dir ./datasets_processed/amass_p2 --root_dir PATH_TO_AMASS_DATASET --splits_dir prepare_data/amass_p2 --out_fps 30
 ```
-
-3. Download the mean/std of the dataset from **TO-BE-ADDED**
-4. Download the json files describing the random gaps from [here (TO BE ADDED)](), and move them to `./datasets_processed/amass_p2/eval_gap_configs/`.
 
 **GORP**:
 
-**------ TO BE RELEASED ------**
+1. Download the GORP dataset from **TO BE RELEASED**.
+2. Run the following script:
 
 ```bash
-python prepare_data_gorp.py --support_dir PATH_TO_SMPL_MODELS --save_dir PATH_TO_AMASS_DATASET --root_dir WHERE_TO_STORE_PROCESSED_DATASET --splits_dir prepare_data/gorp --out_fps 30
+python prepare_data_gorp.py --root_dir PATH_TO_GORP_DATASET
 ```
 
 <!-- </details> -->
