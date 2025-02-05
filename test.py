@@ -76,17 +76,15 @@ def main():
             )
         if args.vis_gt:
             logger.info("Visualizing the ground truth...")
-            visualizer.visualize_all(
-                output_dir, gt_data=True, overwrite=args.vis_overwrite
-            )
-            """
+            # visualizer.visualize_all(
+            #     output_dir, gt_data=True, overwrite=args.vis_overwrite
+            # )
             visualizer.visualize_subset(
                 output_dir,
                 gt_data=True,
                 overwrite=args.vis_overwrite,
                 export_results=args.vis_export,
             )
-            """
 
     if args.eval:
         logger.info("Evaluating the model...")

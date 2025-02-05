@@ -90,7 +90,6 @@ class TrainLoop:
             body_model = BodyModelsWrapper(args.support_dir)
             to_evaluate_list = [
                 ("", None),
-                ("_medHandsGaps", "medium_hands_idp"),
             ]
             for suffix, eval_gap_config in to_evaluate_list:
                 self.test_suffixs.append(suffix)

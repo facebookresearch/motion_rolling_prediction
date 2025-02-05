@@ -145,7 +145,6 @@ class RollingGenerationWrapper(BaseGenerationWrapper):
             if return_predictions and all_predictions is not None:
                 all_predictions[current_idx] = self.inv_transform(x_start.cpu())[0]
 
-            # save first frame, which is fully denoised now
             output[:, current_idx : current_idx + 1] = x_start[:, :1]
             if (
                 ModelOutputType.SHAPE_PARAMS in result
