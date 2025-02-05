@@ -1,4 +1,4 @@
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+# (c) Meta Platforms, Inc. All Rights Reserved
 import json
 import os
 from typing import List, Optional
@@ -86,7 +86,6 @@ class CustomJSONEncoder(json.JSONEncoder):
 def get_marker_points_and_colors(
     gaps: Optional[TrackingSignalGapsInfo], sparse, pr_body=None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    # gt_body, pr_body are of a type defined in https://fburl.com/code/rmb5rabq
     # RGBA
     GREEN = [0.0, 1.0, 0.0, 1.0]
     RED = [1.0, 0.0, 0.0, 1.0]

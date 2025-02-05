@@ -8,7 +8,6 @@ from data_loaders.dataloader import TestDataset
 from evaluation.evaluation import EvaluatorWrapper
 from evaluation.generators import create_generator
 
-# see https://fb.workplace.com/groups/271514828183094/permalink/457581169576458/
 from evaluation.utils import BodyModelsWrapper
 from evaluation.visualization import VisualizerWrapper
 

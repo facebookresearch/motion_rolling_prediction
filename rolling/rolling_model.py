@@ -1,20 +1,6 @@
-"""
-This code started out as a PyTorch port of Ho et al's diffusion models:
-https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/diffusion_utils_2.py
+# (c) Meta Platforms, Inc. All Rights Reserved
 
-Docstrings have been added, as well as DDIM sampling and a new collection of beta schedules.
-"""
-
-from typing import Final, Optional
-
-import numpy as np
-
-# MIT License
-# Copyright (c) 2021 OpenAI
-#
-# This code is based on https://github.com/GuyTevet/motion-diffusion-model
-# Copyright (c) Meta Platforms, Inc. All Rights Reserved
-
+from typing import Optional
 import torch as th
 import utils.constants as constants
 from data_loaders.dataloader import TrainDataset
