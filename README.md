@@ -66,7 +66,7 @@ conda env create -f environment.yml
 conda activate rpm
 ```
 
-This [README file](TO ADD) contains instructions on how to visualize, evaluate, and train the model.
+This [README file](tutorial/README.md) contains instructions on how to train/evaluate the model and visualize the results.
 
 ## 📚 Citation
 
