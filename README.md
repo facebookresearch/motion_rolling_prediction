@@ -3,7 +3,7 @@
 <h3 align="center">From Sparse Signal to Smooth Motion: Real-Time Motion Generation with Rolling Prediction Models</h3>
 
   <p align="center">
-    <!-- <a href="https://barquerogerman.github.io/Rolling/"><img alt="Project" src="https://img.shields.io/badge/-Project%20Page-lightgrey?logo=Google%20Chrome&color=informational&logoColor=white"></a> -->
+    <!-- <a href="https://barquerogerman.github.io/RPM/"><img alt="Project" src="https://img.shields.io/badge/-Project%20Page-lightgrey?logo=Google%20Chrome&color=informational&logoColor=white"></a> -->
     <!-- <a href="https://arxiv.org/abs/xxxx.xxxx"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2402.15509-b31b1b.svg"></a> -->
     <!-- <img alt="visits" src="https://hits.seeyoufarm.com/api/count/incr/badge.svg"> -->
   </p>
@@ -25,10 +25,10 @@ In extended reality (XR), generating full-body motion of the users is important 
 
 ## 📌 News
 <!-- [2025-02-26] Our paper is available in [Arxiv](https://arxiv.org/abs/xxxx.xxxxx).-->
-- [2025-02-xx] Repository is available. Code will soon follow.
+- [2025-02-xx] The code of RPM is available.
 
 ## 📝 TODO List
-- [] Release code for training, evaluation, and visualization.
+- [x] Release code for training, evaluation, and visualization.
 - [] Release pretrained models.
 - [] Release GORP dataset.
 
@@ -92,7 +92,7 @@ This project has used and is built on source codes shared by [body_visualizer](h
 ![CC BY-NC 4.0][cc-by-nc-shield]
 
 The majority of RPM code is licensed under CC-BY-NC, however portions of the project are available under separate license terms:
-- Trimesh, [AvatarPose](https://github.com/eth-siplab/AvatarPoser) and [MDM](https://github.com/GuyTevet/motion-diffusion-model) are licensed under the MIT license;
+- Trimesh, [AvatarPoser](https://github.com/eth-siplab/AvatarPoser) and [MDM](https://github.com/GuyTevet/motion-diffusion-model) are licensed under the MIT license;
 - Human Body Prior is licensed under a custom license for non-commercial scientific research purposes, available at [link](https://github.com/nghorbani/human_body_prior/blob/master/LICENSE);
 - Body Visualizer is licensed under a custom license for non-commercial scientific research purposes, available at [link](https://github.com/nghorbani/body_visualizer/blob/master/LICENSE).
 
