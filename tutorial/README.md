@@ -1,5 +1,5 @@
 
-# Running FlowMDM
+# Running RPM
 
 ## 💾 Pretrained models
 
