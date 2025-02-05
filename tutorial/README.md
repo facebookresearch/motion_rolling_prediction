@@ -94,7 +94,7 @@ python test.py --model_path ./checkpoints/<DATASET_FOLDER>/<MODEL_NAME>/model_la
 
 ## 🎬 Visualization
 
-To generate a visualization of a model in a particular dataset and setup, use the evaluation commands above replacing:
+To generate the full-body motion visualizations of a few samples from a particular dataset and setup, use the evaluation commands above replacing:
 `--eval --eval_batch_size 16`
 with
 `--vis --vis_overwrite`.
@@ -125,9 +125,12 @@ python train.py --results_dir ./results/amass_p2_retrained --dataset amass_p2 --
 ```
 Set `--input_motion_length 10 --exp_name smooth` to train the `RPM - Smooth` version reported in the paper.
 
-**[GORP]** To retrain our `RPM - Reactive` model with GORP, run:
+**[GORP - Synthetic inputs]** To retrain our `RPM - Reactive` model with GORP (synthetic inputs), run:
 
 ```bash
 python train.py --results_dir ./results/gorp --dataset gorp --train_dataset_repeat_times 100 --batch_size 512 --input_motion_length 10 --exp_name reactive --rolling_fr_frames 30 --rolling_motion_ctx 10 --rolling_sparse_ctx 10 --loss_velocity 1 --loss_fk 1 --loss_fk_vel 1 --overwrite
 ```
 Set `--input_motion_length 10 --exp_name smooth` to train the `RPM - Smooth` version reported in the paper.
+
+
+**[GORP - Real inputs]** To retrain the model with GORP (real inputs), add `--use_real_input --input_conf_threshold 0.8` to the command above (both reactive and smooth versions).
