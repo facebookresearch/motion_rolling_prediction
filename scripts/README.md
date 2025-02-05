@@ -48,30 +48,32 @@ python prepare_data_gorp.py --root_dir PATH_TO_GORP_DATASET
 
 ## 📊 Evaluation
 
-To evaluate any of the models, make sure you followed the dataset preparation steps from above and run:
+To evaluate any of the models, make sure you followed the dataset preparation steps from above and run these commands with DATAS:
 
 **[AMASS-P1/P2 MC setup]**
 ```bash
-python test.py --model_path ./checkpoints/amass_p1/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16
+python test.py --model_path ./checkpoints/<DATASET_FOLDER>/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16
 ```
 
 **[AMASS-P1/P2 HT setup]**
 ```bash
-python test.py --model_path ./checkpoints/amass_p1/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16 --eval_gap_config hand_tracking
+python test.py --model_path ./checkpoints/<DATASET_FOLDER>/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16 --eval_gap_config hand_tracking
 ```
 
-**[GORP dataset]**
+**[GORP Synthetic Inputs]**
 
 For the GORP dataset, we can evaluate either on synthetic tracking inputs (using SMPL GT head/wrists), or using the real input from the headset IMU and wrists IMU/hand-tracking signals. You can specify the `--test_split`: `test_controllers` (MC setup) or `test_tracking` (HT setup).
 
-**[GORP Synthetic Inputs]**
 ```bash
 python test.py --model_path ./checkpoints/gorp/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16 --eval_gap_config real_input --test_split TEST_SPLIT
 ```
 
 **[GORP Real Inputs]**
+
+The paper includes a synth-to-real and a real-to-real evaluation. To reproduce them, use the models in the `gorp` or `gorp_real_inputs` DATASET_FOLDER, respectively, and the following command:
+
 ```bash
-python test.py --model_path ./checkpoints/gorp/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16 --eval_gap_config real_input --test_split TEST_SPLIT --use_real_input --input_conf_threshold 0.8
+python test.py --model_path ./checkpoints/<DATASET_FOLDER>/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16 --eval_gap_config real_input --test_split TEST_SPLIT --use_real_input --input_conf_threshold 0.8
 ```
 
 > [!NOTE]
@@ -91,7 +93,7 @@ with
 
 ### Render SMPL meshes in Unity
 
-If you use `--vis_export`, the visualizer will store an .obj file for each frame containing the SMPL mesh. It will also generate `.json` files with information on the skeleton predictions (W skeletons per frame, coordinates in world space), the tracking input (0, 1, 2 are headset, left and right wrists) world coordinates (x, y, z) and orientation (rw, rx, ry, rz). These can be used to generate visualizations like in the paper.
+If you use `--vis_export`, the visualizer will store an `.obj` file for each frame containing the SMPL mesh. It will also generate `.json` files with information on the skeleton predictions (W skeletons per frame, coordinates in world space), the tracking input (0, 1, 2 are headset, left and right wrists) world coordinates (x, y, z) and orientation (rw, rx, ry, rz). These can be used to generate visualizations like in the paper.
 
 
 ## 🏋️‍♂️ Training
