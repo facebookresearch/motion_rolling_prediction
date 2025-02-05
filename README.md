@@ -84,7 +84,7 @@ If you find our work helpful, please cite:
 
 ## 🤝🏼 Acknowledgements
 
-This project has used and is built on source codes shared by [body_visualizer](https://github.com/nghorbani/body_visualizer), [human_body_prior](https://github.com/nghorbani/human_body_prior), [AvatarPoser](https://github.com/eth-siplab/AvatarPoser), [AGRoL](https://github.com/facebookresearch/AGRoL), [BoDiffusion](https://github.com/BCV-Uniandes/BoDiffusion), [AvatarJLM](https://github.com/zxz267/AvatarJLM), [SAGE](https://github.com/Wenchao-M/SAGE), [EgoPoser](https://github.com/eth-siplab/EgoPoser). We thank the authors for their effort and open sourcing their works.
+This project has used and is built on source codes shared by [body_visualizer](https://github.com/nghorbani/body_visualizer), [human_body_prior](https://github.com/nghorbani/human_body_prior), [AvatarPoser](https://github.com/eth-siplab/AvatarPoser), [AGRoL](https://github.com/facebookresearch/AGRoL). We thank the authors for their effort and open sourcing their works.
 
 
 ## 📚 License
