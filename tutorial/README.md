@@ -3,7 +3,23 @@
 
 ## 💾 Pretrained models
 
-**TO BE ADDED**
+Download them from **TO BE ADDED** and extract its content to the repo root.
+The repo should look like
+```
+RPM
+├── checkpoints
+├──── amass_p1/
+├────── reactive
+├────── smooth
+├──── amass_p2/
+├────── reactive
+├────── smooth
+├──── ...
+├── body_visualizer/
+├── human_body_prior/
+├── SMPL/
+└── ...
+```
 
 ## 🗂️ Data preparation
 
@@ -32,7 +48,7 @@ python prepare_data.py --save_dir ./datasets_processed/amass_p2 --root_dir PATH_
 
 **GORP**:
 
-1. Download the GORP dataset from **TO BE RELEASED**.
+1. Download the GORP dataset from **TO BE RELEASED** and uncompress it.
 2. Run the following script:
 
 ```bash
@@ -44,7 +60,7 @@ python prepare_data_gorp.py --root_dir PATH_TO_GORP_DATASET
 
 ## 📊 Evaluation
 
-To evaluate any of the models, make sure you followed the dataset preparation steps from above and run these commands with DATAS:
+To evaluate any of the models, make sure you followed the dataset preparation steps from above and run these commands with DATASET_FOLDER replaced with `amass_p1` or `amass_p2`, and MODEL_NAME with `reactive` or `smooth`:
 
 **[AMASS-P1/P2 MC setup]**
 ```bash
@@ -66,7 +82,7 @@ python test.py --model_path ./checkpoints/gorp/<MODEL_NAME>/model_latest.pt --ev
 
 **[GORP Real Inputs]**
 
-The paper includes a synth-to-real and a real-to-real evaluation. To reproduce them, use the models in the `gorp` or `gorp_real_inputs` DATASET_FOLDER, respectively, and the following command:
+The paper includes a synth-to-real and a real-to-real evaluation. To reproduce them, run the following command replacing DATASET_FOLDER with `gorp` or `gorp_real_inputs`, respectively:
 
 ```bash
 python test.py --model_path ./checkpoints/<DATASET_FOLDER>/<MODEL_NAME>/model_latest.pt --eval --eval_batch_size 16 --eval_gap_config real_input --test_split TEST_SPLIT --use_real_input --input_conf_threshold 0.8
@@ -78,18 +94,18 @@ python test.py --model_path ./checkpoints/<DATASET_FOLDER>/<MODEL_NAME>/model_la
 
 ## 🎬 Visualization
 
-To generate a visualization of a model in a particular dataset and setup, use the evaluation command replacing:
+To generate a visualization of a model in a particular dataset and setup, use the evaluation commands above replacing:
 `--eval --eval_batch_size 16`
 with
 `--vis --vis_overwrite`.
 
 > [!WARNING]
-> Comment all `os.environ['PYOPENGL_PLATFORM'] = "egl"` in the project if you get the `ImportError: ('Unable to load EGL library', "Could not find module 'EGL' (or one of its dependencies). Try using the full path with constructor syntax.", 'EGL', None)` error.
+> Comment all `os.environ['PYOPENGL_PLATFORM'] = "egl"` in the project if you get an `ImportError: ('Unable to load EGL library', "Could not find module 'EGL' (or one of its dependencies). Try using the full path with constructor syntax.", 'EGL', None)` error.
 
 
 ### Render SMPL meshes in Unity
 
-If you use `--vis_export`, the visualizer will store an `.obj` file for each frame containing the SMPL mesh. It will also generate `.json` files with information on the skeleton predictions (W skeletons per frame, coordinates in world space), the tracking input (0, 1, 2 are headset, left and right wrists) world coordinates (x, y, z) and orientation (rw, rx, ry, rz). These can be used to generate visualizations like in the paper.
+If you add `--vis_export`, the visualizer will store an `.obj` file for each frame containing the SMPL mesh. It will also generate `.json` files with information on the skeleton predictions (W skeletons per frame, coordinates in world space), the tracking input (0, 1, 2 are headset, left and right wrists) world coordinates (x, y, z) and orientation (rw, rx, ry, rz). These can be used to generate visualizations such as the ones in the paper.
 
 
 ## 🏋️‍♂️ Training

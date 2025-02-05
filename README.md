@@ -42,7 +42,7 @@ This code was tested on Python 3.10 + PyTorch 2.5.1. While other versions might 
 
 The repo should look like
 ```
-rolling_prediction_models
+RPM
 ├── body_visualizer
 ├──── mesh/
 ├──── tools/
@@ -55,7 +55,6 @@ rolling_prediction_models
 ├──── smplx/
 ├────── neutral/
 ├──────── model.npz
-├── checkpoints/
 ├── data_loaders/
 └── ...
 ```
