@@ -75,13 +75,6 @@ class ModelWrapper(nn.Module):
         else:
             raise NotImplementedError
 
-    def q_sample(self, x_start):
-        """
-        Diffuse the input x_start by t steps.
-        """
-        # TODO add q_sample logic here
-        raise NotImplementedError
-
     def forward(self, prev_pred, cond, **kwargs):
         """
         prev_pred: previous prediction
@@ -91,10 +84,12 @@ class ModelWrapper(nn.Module):
         if self.prediction_input_type == PredictionInputType.NONE:
             model_input = th.zeros_like(prev_pred)
         elif self.prediction_input_type == PredictionInputType.CLEAN:
+            # this was for ablation in the supp. mat.
             model_input = prev_pred
         elif self.prediction_input_type == PredictionInputType.NOISY:
-            raise NotImplementedError # TODO
-            model_input = self.q_sample(prev_pred, t)
+            # this was for ablation in the supp. mat. It wasn't adapted during code refactor.
+            # you could implement it by implementing a pseudo-q-sample function from diffusion models.
+            raise NotImplementedError 
         else:
             raise NotImplementedError
 

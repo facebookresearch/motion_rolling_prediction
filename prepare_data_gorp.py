@@ -223,7 +223,6 @@ def main(args, device="cuda:0"):
                 real_hmd_cond, real_global_hmd_pos, real_global_hmd_rot = (
                     from_controllers_to_hmd_conditioning(smpl_inputs_3p)
                 )
-                # TODO: here velocities will be wrong for frames with neighboring frames with no hands tracking!!
 
                 # ============= ADD GT ============
                 bdata_poses = bdata["poses"][downsample_idces, ...]

@@ -141,7 +141,7 @@ def get_marker_points_and_colors(
         colors_pred = np.tile(GRAY_TR, (points_pred.shape[0], points_pred.shape[1], 1))
         rots_pred = np.zeros(
             (points_pred.shape[0], points_pred.shape[1], 3, 3)
-        )  # TODO T202407740
+        )
         all_points = np.concatenate((points_GT, points_pred), axis=1)
         all_colors = np.concatenate((colors_GT, colors_pred), axis=1)
         all_rots = np.concatenate((rots_GT, rots_pred), axis=1)
