@@ -66,11 +66,12 @@ conda activate rpm
 
 This [README file](tutorial/README.md) contains instructions on how to train/evaluate the model and visualize the results.
 
-## GORP Dataset Access:
+## 🗄️ GORP Dataset Access:
+
+The data is only provided upon request via requestor’s email under the CC BY-NC license.
 
 To request access to the GORP dataset you can fill this request form [link](https://docs.google.com/forms/d/e/1FAIpQLSfT2dGSUk7MLZD8U0PoufEjR425WMtpBPiIMSwzLts2qK4L5A/viewform?usp=header)
 
-The dataset usage is license under this license: [TBD]
 
 ## 📚 Citation
 
