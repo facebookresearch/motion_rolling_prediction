@@ -23,13 +23,9 @@ In extended reality (XR), generating full-body motion of the users is important 
 -->
 
 ## 📌 News
-<!-- [2025-02-26] Our paper is available in [Arxiv](https://arxiv.org/abs/xxxx.xxxxx).-->
-- [2025-02-xx] The code of RPM is available.
 
-## 📝 TODO List
-- [x] Release code for training, evaluation, and visualization.
-- [] Release pretrained models.
-- [] Release GORP dataset.
+[2025-04-07] Our paper is available in [Arxiv]([https://arxiv.org/abs/xxxx.xxxxx](https://arxiv.org/abs/2504.05265)).
+
 
 ## 👩🏻‍🏫 Getting started
 
