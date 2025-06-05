@@ -62,6 +62,10 @@ conda activate rpm
 
 This [README file](tutorial/README.md) contains instructions on how to train/evaluate the model and visualize the results.
 
+4. Model weights:
+
+The pre-terained model weights used in the paper are available [here](https://github.com/facebookresearch/motion_rolling_prediction/releases/download/v0/rpm_checkpoints.zip)
+
 ## 🗄️ GORP Dataset Access:
 
 The data is only provided upon request via requestor’s email under the CC BY-NC license.
