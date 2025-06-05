@@ -1,0 +1,10 @@
+body_visualizer
+human_body_prior
+*.pyc
+__pycache__
+checkpoints
+SMPL
+results
+datasets_processed/amass_p1/new_format_data/*/
+datasets_processed/amass_p2/new_format_data/*/
+datasets_processed/gorp/new_format_data/*/
