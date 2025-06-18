@@ -75,14 +75,14 @@ To request access to the GORP dataset you can fill this request form [link](http
 
 ## 📚 Citation
 
-If you find our work helpful, please cite:
+If you find our work helpful or use the GORP dataset, please cite:
 
 ```bibtex
-@inproceedings{barquero2025fromsparse,
+@inproceedings{barquero2025rolling,
   title={From Sparse Signal to Smooth Motion: Real-Time Motion Generation with Rolling Prediction Models},
-  author={Barquero, German and Bertsch, Nadine and Marramreddy, Manojkumar and Chacón, Carlos and Arcadu, Filippo and Rigual, Ferran and He, Nicky Sijia and Palmero, Cristina and Escalera, Sergio and Ye, Yuting and Kips, Robin},
-  booktitle={arXiv},
-  year={2025}
+  author={Barquero, German and Bertsch, Nadine and Marramreddy, Manojkumar and Chacón, Carlos and Arcadu, Filippo and Rigual, Ferran and He, Nicky and Palmero, Cristina and Escalera, Sergio and Ye, Yuting and Kips, Robin},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  year={2025},
 }
 ```
 
